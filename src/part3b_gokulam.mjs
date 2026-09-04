@@ -238,6 +238,50 @@ function buildGokulam(scene, haloTex) {
   let finaleT = -1;
   function lightLamps() { if (finaleT < 0) finaleT = 0; }
 
+  /* chapter seven: Vrindavan & Nanda Bhavan sanctuary */
+  const VRINDAVAN_Z = -285;
+  const vrindavanGroup = new THREE.Group(); scene.add(vrindavanGroup);
+
+  // Sacred Torana Archway at entrance (Z = -248)
+  const archMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28, roughness: 0.85 });
+  const vrindavanGoldMat = new THREE.MeshStandardMaterial({ color: 0xe5b567, roughness: 0.3, metalness: 0.7 });
+  const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 5.5, 12), archMat); p1.position.set(-4.5, groundY(-248) + 2.75, -248); vrindavanGroup.add(p1);
+  const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 5.5, 12), archMat); p2.position.set(4.5, groundY(-248) + 2.75, -248); vrindavanGroup.add(p2);
+  const archBeam = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.45, 0.6), archMat); archBeam.position.set(0, groundY(-248) + 5.3, -248); vrindavanGroup.add(archBeam);
+  const archGlow = new THREE.PointLight(0xffbe6b, 4.0, 20, 1.6); archGlow.position.set(0, groundY(-248) + 4.8, -248); vrindavanGroup.add(archGlow);
+
+  // Sacred Rangoli on ground at Vrindavan centre
+  const rangoliTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+    g.clearRect(0, 0, 512, 512); g.strokeStyle = '#fff8e7'; g.lineWidth = 3; g.shadowColor = '#e5b567'; g.shadowBlur = 8;
+    for (let r = 40; r <= 220; r += 45) { g.beginPath(); g.arc(256, 256, r, 0, Math.PI * 2); g.stroke(); }
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) { g.beginPath(); g.moveTo(256 + Math.cos(a) * 30, 256 + Math.sin(a) * 30); g.lineTo(256 + Math.cos(a) * 230, 256 + Math.sin(a) * 230); g.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const rangoliMesh = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 8.5), new THREE.MeshBasicMaterial({ map: rangoliTex, transparent: true, opacity: 0.85, depthWrite: false }));
+  rangoliMesh.rotation.x = -Math.PI / 2; rangoliMesh.position.set(0, groundY(VRINDAVAN_Z) + 0.05, VRINDAVAN_Z); vrindavanGroup.add(rangoliMesh);
+
+  // Sacred Tulasi Altar Shrine at VRINDAVAN_Z
+  const altarMat = new THREE.MeshStandardMaterial({ color: 0x8a4522, roughness: 0.9 });
+  const altarBase = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.4, 1.1, 8), altarMat); altarBase.position.set(0, groundY(VRINDAVAN_Z) + 0.55, VRINDAVAN_Z); vrindavanGroup.add(altarBase);
+  const potMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.4, 0.7, 12), new THREE.MeshStandardMaterial({ color: 0x6e2c14, roughness: 0.8 })); potMesh.position.set(0, groundY(VRINDAVAN_Z) + 1.45, VRINDAVAN_Z); vrindavanGroup.add(potMesh);
+  const tulasiBush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.75, 1), new THREE.MeshStandardMaterial({ color: 0x2e6b2c, roughness: 0.7 })); tulasiBush.position.set(0, groundY(VRINDAVAN_Z) + 2.15, VRINDAVAN_Z); vrindavanGroup.add(tulasiBush);
+  const shrineDiya = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), vrindavanGoldMat); shrineDiya.position.set(0, groundY(VRINDAVAN_Z) + 1.25, VRINDAVAN_Z + 0.85); vrindavanGroup.add(shrineDiya);
+  const shrineLight = new THREE.PointLight(0xffb866, 5.0, 16, 2); shrineLight.position.set(0, groundY(VRINDAVAN_Z) + 1.5, VRINDAVAN_Z + 0.85); vrindavanGroup.add(shrineLight);
+
+  // Village Cottages (Nanda Bhavan complex)
+  const hutMat = new THREE.MeshStandardMaterial({ color: 0x5a4230, roughness: 0.95 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x7c5a2c, roughness: 0.9 });
+  const addHut = (hx, hz, rot) => {
+    const g = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(6.4, 3.4, 7.4), hutMat); b.position.y = 1.7; g.add(b);
+    const r = new THREE.Mesh(new THREE.ConeGeometry(5.4, 2.3, 4), roofMat); r.position.y = 4.4; r.rotation.y = Math.PI / 4; g.add(r);
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ color: 0xffcb6b })); win.position.set(0, 2.0, 3.72); g.add(win);
+    const wl = new THREE.PointLight(0xffbe6b, 3.0, 11, 2); wl.position.set(0, 2.0, 4.0); g.add(wl);
+    g.position.set(hx, groundY(hz), hz); g.rotation.y = rot; vrindavanGroup.add(g);
+  };
+  addHut(-15, -265, 0.4); addHut(16, -278, -0.5); addHut(-17, -305, 0.2); addHut(17, -315, -0.3);
+
   const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpV = new THREE.Vector3(), tmpS = new THREE.Vector3(1, 1, 1);
   function update(dt, S, camera) {
     const t = S.time, dawn = S.dawnK, camZ = camera.position.z;
@@ -250,7 +294,7 @@ function buildGokulam(scene, haloTex) {
     }
     const fl = smooth((dawn - 0.45) / 0.25) * (1 - smooth((dawn - 0.95) / 0.05));
     flock.forEach((s, i) => { const u = s.userData; const k = ((t * 0.045 + i * 0.01) % 1); s.position.set(-90 + k * 180 + u.ox, 22 + u.oy + Math.sin(t * 1.8 + u.ph) * 0.4, camZ - 70 + u.oz); s.material.opacity = fl * 0.85; s.scale.y = 0.8 * (0.6 + 0.4 * Math.abs(Math.sin(t * 6 + u.ph))); });
-    flute.visible = camZ < -140;
+    flute.visible = camZ < -140 && camZ > -230;
     if (flute.visible) { flute.position.set(FLUTE_POS.x, groundY(FLUTE_POS.z) + 1.3 + Math.sin(t * 0.8) * 0.06, FLUTE_POS.z); flute.rotation.set(Math.sin(t * 0.5) * 0.08, Math.sin(t * 0.3) * 0.18, Math.sin(t * 0.7) * 0.05); fluteLight.intensity *= Math.pow(0.02, dt); for (const g of holeGlows) g.material.opacity *= Math.pow(0.05, dt); }
     for (const r of rings) if (r.life > 0) { r.life -= dt * 0.9; const k = 1 - r.life; r.m.scale.setScalar(0.3 + k * 2.4); r.m.material.opacity = (1 - k) * 0.8; r.m.lookAt(camera.position); if (r.life <= 0) r.m.visible = false; }
     for (const b of blooms) if (b.life > 0) { b.life -= dt * 0.4; b.vel.y -= dt * 0.9; b.vel.multiplyScalar(1 - dt * 0.6); b.m.position.addScaledVector(b.vel, dt); b.m.rotation.y += b.sp * dt; b.m.rotation.z += Math.sin(t * 3) * dt; b.m.material.opacity = Math.min(1, b.life * 2); if (b.life <= 0) b.m.visible = false; }
@@ -261,7 +305,7 @@ function buildGokulam(scene, haloTex) {
     lamps.forEach((s, i) => { s.material.opacity = (0.55 + 0.15 * Math.sin(t * 5 + i)) * (1 - dawn * 0.6); });
     if (flute.visible) guides.forEach((g, i) => { const target = guideOn * (i === hotHole ? 1 : 0.28 + 0.12 * Math.sin(t * 2 + i)); g.material.opacity += (target - g.material.opacity) * Math.min(1, dt * 8); g.scale.setScalar(i === hotHole ? 0.36 : 0.22); });
     for (const P of pots) { const e = P.pot.material.emissive; e.setRGB(0.25 * P.hot, 0.16 * P.hot, 0.05 * P.hot); }
-    card.visible = camZ < -200;
+    card.visible = camZ < -200 && camZ > -250;
     if (card.visible) {
       tilt.lerp(tiltT, Math.min(1, dt * 4));
       const hf = Math.tan(camera.fov * Math.PI / 360) * camera.aspect; card.scale.setScalar(clamp(0.74 * 2 * 4.6 * hf / 1.64, 0.9, 3.4));
@@ -275,5 +319,5 @@ function buildGokulam(scene, haloTex) {
       diyaGeo.attributes.position.needsUpdate = true; diyaMat.uniforms.uTime.value = t; diyaMat.uniforms.uOpacity.value = Math.min(1, finaleT * 0.4);
     }
   }
-  return { update, playNote, tapPot, hoverPot, potsLeft, breakPot, pots, groundY, NOTES, flute, FLUTE_Z: FLUTE_POS.z, LANE_Z, CARD_Z, holes, holeNDC, setGuides, rayHit, card, setCardName, setTilt, lightLamps, finaleOn: () => finaleT >= 0 };
+  return { update, playNote, tapPot, hoverPot, potsLeft, breakPot, pots, groundY, NOTES, flute, FLUTE_Z: FLUTE_POS.z, LANE_Z, CARD_Z, VRINDAVAN_Z, holes, holeNDC, setGuides, rayHit, card, setCardName, setTilt, lightLamps, finaleOn: () => finaleT >= 0 };
 }

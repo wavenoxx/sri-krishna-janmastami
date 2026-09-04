@@ -14,7 +14,8 @@ const river = buildRiver();
 const gk = river.gk;
 
 const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret');
-for (let i = 0; i < 6; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
+const journeyBar = $('#journey-bar'), hudNav = $('#hud-nav'), navBack = $('#nav-back'), navTurn = $('#nav-turn'), navFwd = $('#nav-fwd');
+for (let i = 0; i < 7; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
 const dotEls = dotsEl.querySelectorAll('i');
 function dots(i) { dotEls.forEach((d, k) => d.classList.toggle('on', k === i)); }
 let cardTimer = 0;
@@ -88,7 +89,7 @@ enterBtn.addEventListener('click', () => {
   S.mode = 'cell'; S.modeT = 0;
   tweenCam(CELL_POS, CELL_TGT, 5.2);
   setTimeout(() => card('Chapter one', 'Nishita', 'Mathura. A prison cell. The eighth night of the dark fortnight.', 6500), 1800);
-  setTimeout(() => { markEl.classList.add('show'); soundBtn.classList.add('show'); dotsEl.classList.add('show'); dots(0); }, 4300);
+  setTimeout(() => { markEl.classList.add('show'); soundBtn.classList.add('show'); dotsEl.classList.add('show'); journeyBar.classList.add('show'); hudNav.classList.add('show'); dots(0); }, 4300);
   setTimeout(() => { if (S.mode !== 'cell') return; cdEl.classList.add('show'); setHint(isMobile ? 'Drag to look around. Wait for midnight, or witness now.' : 'Move the mouse to look around. Wait for midnight, or witness the birth now.'); }, 9000);
   setTimeout(() => { if (S.mode === 'cell') witnessBtn.classList.add('show'); }, 10500);
 });
@@ -118,63 +119,115 @@ function updateBirth(dt) {
   if (bt >= 11.5) startRiver();
 }
 
-/* ───────────────────────── the road: chapters two to six ───────────────────────── */
+/* ───────────────────────── the open world road: chapters one to seven ───────────────────────── */
 const RAIL_LEN = river.rail.getLength();
 const M = m => m / RAIL_LEN;                      // metres → rail units
 function tAtZ(z) { for (let i = 0; i <= 3000; i++) { const u = i / 3000; if (river.rail.getPointAt(u).z <= z) return u; } return 1; }
-const STATIONS = [{ name: 'flute', t: tAtZ(-166.5), z: -166.5 }, { name: 'lane', t: tAtZ(-193), z: -193 }, { name: 'card', t: tAtZ(-216.4), z: -216.4 }];
-const MILESTONES = [tAtZ(-98), tAtZ(-124), STATIONS[0].t, STATIONS[1].t, STATIONS[2].t, 1];
-const NEXT_LABEL = { river: 'Cross the river', shore: 'Walk on', grove: 'Walk on', flute: 'Continue the journey', lane: 'Continue the journey', card: 'Light the lamps' };
-const MAXV = M(5.5);
-const WALK = () => M(S.chapter === 'river' ? 3.0 : 2.4), DRIFT = () => M(S.chapter === 'river' ? 0.7 : 0.55);
-function stationHere() { for (const st of STATIONS) if (Math.abs(S.t - st.t) < M(1.5)) return st; return null; }
-function walkTo(goal) { S.goal = clamp(goal, 0, 1); S.push = 0; }
-function nextMilestone() { for (const m of MILESTONES) if (m > S.t + M(2)) return m; return 1; }
+const STATIONS = [
+  { name: 'cell', t: 0.0, z: 78, label: '1. Nishita' },
+  { name: 'river', t: tAtZ(15), z: 15, label: '2. Yamuna' },
+  { name: 'shore', t: tAtZ(-104), z: -104, label: '3. Kadamba' },
+  { name: 'flute', t: tAtZ(-166.5), z: -166.5, label: '4. Venu Gaanam' },
+  { name: 'lane', t: tAtZ(-193), z: -193, label: '5. Utlotsavam' },
+  { name: 'card', t: tAtZ(-221), z: -221, label: '6. Aahvaanam' },
+  { name: 'vrindavan', t: tAtZ(-285), z: -285, label: '7. Vrindavan' }
+];
+const MILESTONES = STATIONS.map(s => s.t);
+const NEXT_LABEL = {
+  river: 'Reach the shore',
+  shore: 'Walk into Gokulam',
+  grove: 'Follow the morning',
+  flute: 'Follow the laughter',
+  lane: 'The golden card',
+  card: 'Enter Vrindavan',
+  vrindavan: 'Retrace to Yamuna'
+};
+const MAXV = M(14.0);
+const WALK = () => M(S.chapter === 'river' ? 3.6 : 3.2);
+let lookForward = true;
+const targetLook = new THREE.Vector3();
+
+function stationHere() {
+  for (const st of STATIONS) if (Math.abs(S.t - st.t) < M(3.5)) return st;
+  return null;
+}
+function walkTo(targetT) {
+  lookForward = (targetT >= S.t);
+  S.goal = clamp(targetT, 0, 1);
+}
+function travelToStation(targetT) {
+  if (S.mode === 'cell' || S.mode === 'gate') {
+    startRiver();
+    setTimeout(() => { walkTo(targetT); }, 600);
+    return;
+  }
+  if (S.mode !== 'river') return;
+  walkTo(targetT);
+}
+function nextMilestone() {
+  for (const m of MILESTONES) if (m > S.t + M(3)) return m;
+  return 1;
+}
+function prevMilestone() {
+  for (let i = MILESTONES.length - 1; i >= 0; i--) if (MILESTONES[i] < S.t - M(3)) return MILESTONES[i];
+  return 0;
+}
 function advance(mps) {
   if (S.mode !== 'river') return;
-  if (S.goal !== null && mps > 0) { S.vel = Math.min(MAXV, S.vel + M(mps)); return; }
   S.goal = null;
-  const st = stationHere();
-  if (st && mps > 0 && !st.released) { S.push += mps; if (S.push > 6) { st.released = true; S.vel = WALK() * 0.6; } return; }
+  if (mps > 0.1) lookForward = true;
+  else if (mps < -0.1) lookForward = false;
   S.vel = clamp(S.vel + M(mps), -MAXV, MAXV);
 }
 function updateWalk(dt) {
-  const st = stationHere();
   if (S.goal !== null) {
     const dist = S.goal - S.t, dir = Math.sign(dist);
-    const desired = dir * Math.min(WALK(), Math.sqrt(2 * M(0.9) * Math.abs(dist)));
-    S.vel += (desired - S.vel) * Math.min(1, dt * 3);
-    if (Math.abs(dist) < M(0.15)) { S.t = S.goal; S.vel = 0; S.goal = null; }
+    if (Math.abs(dist) > M(0.5)) lookForward = (dir >= 0);
+    const desired = dir * Math.min(WALK() * 2.5, Math.max(M(1.2), Math.sqrt(2 * M(3.2) * Math.abs(dist))));
+    S.vel += (desired - S.vel) * Math.min(1, dt * 4.5);
+    if (Math.abs(dist) < M(0.12)) { S.t = S.goal; S.vel = 0; S.goal = null; }
   } else {
-    const base = (!st && S.chapter !== 'end' && S.t < 0.999) ? DRIFT() : 0;
-    S.vel = base + (S.vel - base) * Math.exp(-dt * 2.4);
-    if (st && !st.released && S.vel > 0 && S.t + S.vel * dt > st.t) { S.t = st.t; S.vel = 0; }
+    S.vel *= Math.exp(-dt * 2.8);
   }
-  if (st && !st.released && S.goal !== null && S.goal > st.t + M(1)) S.goal = st.t;
   S.t = clamp(S.t + S.vel * dt, 0, 1);
 }
 function startRiver() {
   S.mode = 'river'; S.chapter = 'river'; S.chapterT = 0; S.modeT = 0; S.t = 0; S.vel = 0; S.goal = null; S.white = 1; S.exposure = 1; post.rayStrength = 0; S.yawT = 0; S.pitchT = 0; S.nextFlash = S.time + 2.5; cam.tween = null;
+  lookForward = true;
+  journeyBar.classList.add('show');
+  hudNav.classList.add('show');
   if (sound.on) { sound.setSmooth('rain', 0.3); sound.setSmooth('wind', 0.12); sound.setSmooth('water', 0.22); sound.setSmooth('crickets', 0); sound.setSmooth('tanpura', 0.1); }
   setTimeout(() => card('Chapter two', 'Yamuna', 'The storm bows. The river rises to touch His feet.', 6500), 2800);
-  setTimeout(() => { if (S.chapter === 'river') { setHint(isMobile ? 'Swipe up to move faster. Drag to look. Your finger steers the wind.' : 'Scroll to move faster. The mouse looks around and steers the wind.'); setNext(NEXT_LABEL.river); } }, 6000);
+  setTimeout(() => { if (S.chapter === 'river') { setHint(isMobile ? 'Use buttons below or swipe to walk. Drag to look 360°.' : 'Scroll or use W/S / navigation buttons. Mouse looks around in 360°.'); setNext(NEXT_LABEL.river); } }, 6000);
   dots(1);
 }
 const CHAPTER = {
-  shore: () => { card('Gokulam', 'The far bank', 'The rain lets go. Somewhere ahead, a village is still asleep.', 7000); setHint(''); setNext(NEXT_LABEL.shore); if (sound.on) { sound.setSmooth('crickets', 0.05); sound.motif(); } },
-  grove: () => { card('Chapter three', 'Gokulam wakes', 'Kadamba trees, fireflies, the first birds of the morning.', 7000); dots(2); setHint(isMobile ? 'Swipe up to walk. Look up for the feathers.' : 'Scroll to walk. Look up for the feathers.'); setNext(NEXT_LABEL.grove); if (sound.on) { sound.birdsOn = true; sound.setSmooth('tanpura', 0.2); } },
-  flute: () => { card('Chapter four', 'Venu Gaanam', 'His flute is waiting for your hand.', 7000); dots(3); setHint(isMobile ? 'Drag your finger across the flute, or tap a hole.' : 'Glide the mouse across the flute, or tap a hole. Keys 1 to 8 play too.'); setNext(''); S.notes = 0; S.idle = -9; gk.setGuides(1, -1); if (sound.on) sound.setSmooth('tanpura', 0.12); setTimeout(() => playPhrase(PHRASES[0]), 2400); },
-  lane: () => { card('Chapter five', 'Utlotsavam', 'Seven pots of butter hang over the lane. He would not leave one whole.', 7000); dots(4); setHint(isMobile ? 'Tap a pot to break it.' : 'Click a pot to break it.'); setNext(''); gk.setGuides(0, -1); if (sound.on) { sound.dholOn = true; sound.setSmooth('tanpura', 0.15); } },
-  card: () => { card('Chapter six', 'Aahvaanam', 'An invitation, written in gold, for whoever you carry in your heart.', 8000); dots(5); setHint(isMobile ? 'Tilt your phone to turn the card.' : 'Move the mouse to turn the card.'); setNext(''); setTimeout(() => { if (S.chapter === 'card') { inviteEl.classList.add('show'); setNext(NEXT_LABEL.card); } }, 5000); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.26); sound.birdsOn = true; } if (isMobile) askGyro(); },
-  end: () => { setNext(''); },
+  river: () => { dots(1); if (sound.on) { sound.dholOn = false; sound.setSmooth('rain', 0.28); sound.setSmooth('water', 0.22); } },
+  shore: () => { card('Gokulam', 'The far bank', 'The rain lets go. Somewhere ahead, a village is still asleep.', 7000); setHint(''); setNext(NEXT_LABEL.shore); dots(2); if (sound.on) { sound.setSmooth('crickets', 0.05); sound.motif(); } },
+  grove: () => { card('Chapter three', 'Gokulam wakes', 'Kadamba trees, fireflies, the first birds of the morning.', 7000); dots(2); setHint(isMobile ? 'Walk ahead into the grove. Look up for peacock feathers.' : 'Follow the morning path. Look up for the peacock feathers.'); setNext(NEXT_LABEL.grove); if (sound.on) { sound.birdsOn = true; sound.setSmooth('tanpura', 0.2); } },
+  flute: () => { card('Chapter four', 'Venu Gaanam', 'His flute is waiting for your hand.', 7000); dots(3); setHint(isMobile ? 'Drag your finger across the flute, or tap a hole.' : 'Glide the mouse across the flute, or tap a hole. Keys 1 to 8 play too.'); setNext(NEXT_LABEL.flute); S.notes = 0; S.idle = -9; gk.setGuides(1, -1); if (sound.on) sound.setSmooth('tanpura', 0.12); setTimeout(() => playPhrase(PHRASES[0]), 2400); },
+  lane: () => { card('Chapter five', 'Utlotsavam', 'Seven pots of butter hang over the lane. He would not leave one whole.', 7000); dots(4); setHint(isMobile ? 'Tap a pot to break it. Walk ahead or back anytime.' : 'Click a pot to break it. Advance or retrace anytime.'); setNext(NEXT_LABEL.lane); gk.setGuides(0, -1); if (sound.on) { sound.dholOn = true; sound.setSmooth('tanpura', 0.15); } },
+  card: () => { card('Chapter six', 'Aahvaanam', 'An invitation, written in gold, for whoever you carry in your heart.', 8000); dots(5); setHint(isMobile ? 'Tilt phone or drag to turn card. Advance to enter Vrindavan.' : 'Move mouse to turn card. Advance to enter Vrindavan.'); setNext(NEXT_LABEL.card); setTimeout(() => { if (S.chapter === 'card') { inviteEl.classList.add('show'); } }, 4000); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.26); sound.birdsOn = true; } if (isMobile) askGyro(); },
+  vrindavan: () => { card('Chapter seven', 'Vrindavan Sanctuary', 'Nanda Bhavan welcomes the Lord. The sacred journey lives forever in Gokulam.', 8000); dots(6); setHint(isMobile ? 'Explore the village sanctuary. Retrace path back to Yamuna anytime.' : 'Explore Nanda Bhavan. Retrace path back to Yamuna anytime.'); setNext(NEXT_LABEL.vrindavan); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.28); sound.birdsOn = true; const n = sound.ctx.currentTime; sound.bell(n + 0.4, 880, 0.4); sound.bell(n + 1.2, 1320, 0.3); } },
+  end: () => { setNext(''); }
 };
-function setChapter(c) { if (S.chapter === c) return; S.chapter = c; S.chapterT = 0; (CHAPTER[c] || (() => {}))(); }
+function setChapter(c) {
+  if (S.chapter === c) return;
+  S.chapter = c;
+  S.chapterT = 0;
+  (CHAPTER[c] || (() => {}))();
+  document.querySelectorAll('.j-step').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ch === c || (c === 'grove' && btn.dataset.ch === 'shore'));
+  });
+}
 function updateRiver(dt) {
   S.white = 1 - smooth((S.modeT - 0.4) / 3.2);
   S.chapterT += dt;
   updateWalk(dt);
   const camP = river.rail.getPointAt(clamp(S.t, 0, 1)); const camZ = camP.z;
-  const ahead = river.rail.getPointAt(clamp(S.t + M(6), 0, 1));
+  const lookOffset = lookForward ? M(7.5) : -M(7.5);
+  const lookPoint = river.rail.getPointAt(clamp(S.t + lookOffset, 0, 1));
+  const ahead = lookPoint;
   S.storm = 1 - smooth((-camZ - 52) / 40) * 0.96;
   S.dawnK = smooth((-camZ - 82) / 62);
   S.dawn = 0.42 * smooth((S.dawnK - 0.05) / 0.4) * (1 - 0.6 * smooth((S.dawnK - 0.7) / 0.3));
@@ -183,18 +236,37 @@ function updateRiver(dt) {
   const bP = river.rail.getPointAt(clamp(S.t + M(6), 0, 1)); bP.y = 0.62 + Math.sin(S.time * 1.6) * 0.1;
   river.setBasket(bP);
   cam.pos.copy(camP);
-  const st = stationHere();
-  S.locked = !!st && !st.released && (S.chapter === 'flute' || S.chapter === 'lane' || S.chapter === 'card');
-  if (S.chapter === 'flute') cam.tgt.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
-  else if (S.chapter === 'lane') cam.tgt.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
-  else if (S.chapter === 'card' || S.chapter === 'end') cam.tgt.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
-  else if (S.basketK > 0.5) cam.tgt.set(bP.x, bP.y + 0.9, bP.z - 9);
-  else cam.tgt.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
-  if (S.chapter !== 'end') { if (camZ > -88) setChapter('river'); else if (camZ > -104) setChapter('shore'); else if (camZ > -161) setChapter('grove'); else if (camZ > -184) setChapter('flute'); else if (camZ > -208) setChapter('lane'); else setChapter('card'); }
-  else if (camZ > -208) { S.chapter = 'lane'; setChapter(camZ > -88 ? 'river' : camZ > -104 ? 'shore' : camZ > -161 ? 'grove' : camZ > -184 ? 'flute' : 'lane'); }
-  if ((S.chapter === 'river' || S.chapter === 'shore' || S.chapter === 'grove') && S.goal === null && S.chapterT > 8 && !nextBtn.classList.contains('show')) setNext(NEXT_LABEL[S.chapter]);
-  if (S.chapter === 'flute') { S.idle += dt; if (S.idle > 11) { S.idle = -8; playPhrase(PHRASES[Math.floor(Math.random() * PHRASES.length)]); } if (!nextBtn.classList.contains('show') && (S.notes >= 4 || S.chapterT > 14)) setNext(NEXT_LABEL.flute); }
-  if (S.chapter === 'lane') { if (gk.potsLeft() === 0) finale(); else if (!nextBtn.classList.contains('show') && (gk.potsLeft() < 7 || S.chapterT > 18)) setNext(NEXT_LABEL.lane); }
+
+  // Dynamic 3D Camera LookAt Kinematics
+  if (S.chapter === 'flute' && lookForward && Math.abs(camZ - gk.FLUTE_Z) < 8) {
+    targetLook.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
+  } else if (S.chapter === 'lane' && lookForward && Math.abs(camZ - gk.LANE_Z) < 9) {
+    targetLook.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
+  } else if (S.chapter === 'card' && lookForward && Math.abs(camZ - gk.CARD_Z) < 10) {
+    targetLook.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
+  } else if (S.chapter === 'vrindavan' && lookForward && Math.abs(camZ - gk.VRINDAVAN_Z) < 14) {
+    targetLook.set(0, gk.groundY(gk.VRINDAVAN_Z) + 2.1, gk.VRINDAVAN_Z);
+  } else if (S.basketK > 0.5 && lookForward) {
+    targetLook.set(bP.x, bP.y + 0.9, bP.z - 9);
+  } else if (!lookForward) {
+    targetLook.set(ahead.x, ahead.y + 0.15, ahead.z + 6);
+  } else {
+    targetLook.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
+  }
+  cam.tgt.lerp(targetLook, Math.min(1, dt * 5.0));
+
+  // Determine chapter based on Z
+  if (camZ > -88) setChapter('river');
+  else if (camZ > -104) setChapter('shore');
+  else if (camZ > -158) setChapter('grove');
+  else if (camZ > -184) setChapter('flute');
+  else if (camZ > -208) setChapter('lane');
+  else if (camZ > -248) setChapter('card');
+  else setChapter('vrindavan');
+
+  if (S.chapter === 'flute') { S.idle += dt; if (S.idle > 11) { S.idle = -8; playPhrase(PHRASES[Math.floor(Math.random() * PHRASES.length)]); } }
+  if (S.chapter === 'lane' && gk.potsLeft() === 0) finale();
+
   post.lightPos.copy(river.moonWorld()); post.rayStrength = 0.14 * (0.5 + 0.5 * S.storm) * (1 - S.dawnK);
   if (sound.on) {
     const inland = smooth((-camZ - 96) / 30);
@@ -210,20 +282,47 @@ function finale() {
   if (finaleDone) return; finaleDone = true;
   if (sound.on) { const n = sound.ctx.currentTime; [660, 880, 1100, 1320, 1760].forEach((f, i) => sound.bell(n + 0.15 * i, f, 0.4)); for (let i = 0; i < 8; i++) sound.dholHit(n + 0.12 * i, i % 3 === 2 ? 'tin' : 'dha', 0.6); }
   card('Utlotsavam', 'Seven pots, seven laughs.', 'Every mother in Gokulam has hidden her butter. None of it is safe.', 5000);
-  setHint(''); setNext(NEXT_LABEL.lane); for (const st of STATIONS) if (st.name === 'lane') st.released = true;
-  setTimeout(() => { if (S.chapter === 'lane') walkTo(STATIONS[2].t); }, 5500);
+  setHint(''); setNext(NEXT_LABEL.lane);
+  setTimeout(() => { if (S.chapter === 'lane') walkTo(STATIONS[5].t); }, 5500);
 }
 function lightLamps() {
   if (gk.finaleOn()) return; gk.lightLamps(); setNext(''); inviteEl.classList.remove('show');
   if (sound.on) { const n = sound.ctx.currentTime; sound.conch(n); [0, 1, 2, 3, 4, 7].forEach((k, i) => sound.bell(n + 1.6 + i * 0.22, 293.66 * gk.NOTES[k] * 2, 0.35)); setTimeout(() => sound.motif(), 2600); sound.setSmooth('tanpura', 0.3); }
   setTimeout(() => card('Gokulam', 'A thousand lamps', 'One for every year He has been loved. Jai Sri Krishna.', 9000), 2500);
-  setTimeout(() => { setChapter('end'); const found = Object.values(S.secrets).filter(Boolean).length; setHint(isMobile ? `Drag to look around. Swipe down to walk the road again. ${found} of 3 secrets found.` : `Move to look around. Scroll up to walk the road again. ${found} of 3 secrets found.`); inviteEl.classList.add('show'); }, 12000);
+  setTimeout(() => { const found = Object.values(S.secrets).filter(Boolean).length; setHint(isMobile ? `Drag to look around. Explore Vrindavan ahead. ${found} of 3 secrets found.` : `Move to look around. Explore Vrindavan ahead or retrace path anytime. ${found} of 3 secrets found.`); inviteEl.classList.add('show'); setNext(NEXT_LABEL.card); }, 12000);
 }
 nextBtn.addEventListener('click', () => {
   if (S.mode !== 'river') return;
-  if (S.chapter === 'card') { lightLamps(); return; }
-  const st = stationHere(); if (st) st.released = true;
+  if (S.chapter === 'card') {
+    lightLamps();
+    setTimeout(() => {
+      const st = STATIONS.find(s => s.name === 'vrindavan');
+      if (st) travelToStation(st.t);
+    }, 4500);
+    return;
+  }
+  if (S.chapter === 'vrindavan') {
+    travelToStation(0);
+    return;
+  }
   walkTo(nextMilestone()); setNext('');
+});
+
+// Attach Navigation HUD handlers
+navFwd.addEventListener('click', () => advance(lookForward ? 4.5 : -4.5));
+navBack.addEventListener('click', () => advance(lookForward ? -4.5 : 4.5));
+navTurn.addEventListener('click', () => { lookForward = !lookForward; });
+
+document.querySelectorAll('.j-step').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const ch = btn.dataset.ch;
+    if (ch === 'cell') {
+      if (S.mode === 'river') travelToStation(0);
+      return;
+    }
+    const st = STATIONS.find(s => s.name === ch);
+    if (st) travelToStation(st.t);
+  });
 });
 
 /* ───────────────────────── the invitation: name, link, share, tilt ───────────────────────── */
@@ -308,15 +407,39 @@ addEventListener('pointermove', e => {
     flutePointer(nx, -ny, true);
   }
 });
-addEventListener('wheel', e => { e.preventDefault(); advance(clamp(e.deltaY, -160, 160) * 0.03); }, { passive: false });
+addEventListener('wheel', e => {
+  e.preventDefault();
+  const dir = e.deltaY > 0 ? 1 : -1;
+  advance((lookForward ? 1 : -1) * dir * 3.8);
+}, { passive: false });
 addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 addEventListener('keydown', e => {
   if (e.target === nameInput) return;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') { if (S.mode === 'gate') enterBtn.click(); else advance(3.2); e.preventDefault(); }
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') { advance(-3.2); e.preventDefault(); }
-  else if (e.key === 'm' || e.key === 'M') toggleSound();
-  else if (e.key >= '1' && e.key <= '8' && S.chapter === 'flute') { gk.playNote(+e.key - 1); S.notes++; S.idle = 0; }
-  else if (e.key === 'Enter') { if (S.mode === 'gate') enterBtn.click(); else if (S.mode === 'cell') startBirth(); else if (nextBtn.classList.contains('show')) nextBtn.click(); }
+  if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+    if (S.mode === 'gate') enterBtn.click();
+    else advance(lookForward ? 3.8 : -3.8);
+    e.preventDefault();
+  } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+    advance(lookForward ? -3.8 : 3.8);
+    e.preventDefault();
+  } else if (e.key === 'a' || e.key === 'A') {
+    S.yawT = clamp(S.yawT + 0.18, -1.2, 1.2);
+    e.preventDefault();
+  } else if (e.key === 'd' || e.key === 'D') {
+    S.yawT = clamp(S.yawT - 0.18, -1.2, 1.2);
+    e.preventDefault();
+  } else if (e.key === 'r' || e.key === 'R') {
+    lookForward = !lookForward;
+    e.preventDefault();
+  } else if (e.key === 'm' || e.key === 'M') {
+    toggleSound();
+  } else if (e.key >= '1' && e.key <= '8' && S.chapter === 'flute') {
+    gk.playNote(+e.key - 1); S.notes++; S.idle = 0;
+  } else if (e.key === 'Enter') {
+    if (S.mode === 'gate') enterBtn.click();
+    else if (S.mode === 'cell') startBirth();
+    else if (nextBtn.classList.contains('show')) nextBtn.click();
+  }
 });
 function toggleSound() { if (!sound.on) return; sound.setMuted(!sound.muted); soundBtn.classList.toggle('muted', sound.muted); }
 soundBtn.addEventListener('click', toggleSound);
@@ -371,6 +494,6 @@ function frame(now) {
   post.render((S.mode === 'gate' || S.mode === 'cell' || S.mode === 'birth') ? cell.scene : river.scene, camera, S.time);
   drawTrail(dt);
 }
-window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
+window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, travelToStation, lookForward: () => lookForward, turnAround: () => { lookForward = !lookForward; }, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
 window.__gokulamReady = true;
 requestAnimationFrame(frame);

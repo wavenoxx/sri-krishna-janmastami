@@ -191,7 +191,34 @@ function buildRiver() {
   const village = new THREE.Points(vGeo, villageMat); village.frustumCulled = false; scene.add(village);
   const villageGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xe5a24a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 })); villageGlow.position.set(0, 6, -150); villageGlow.scale.set(260, 60, 1); scene.add(villageGlow);
 
-  const rail = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 3.0, 62), new THREE.Vector3(3, 2.6, 44), new THREE.Vector3(-2.5, 2.4, 24), new THREE.Vector3(1.5, 2.5, 4), new THREE.Vector3(-1, 2.7, -18), new THREE.Vector3(0, 3.0, -40), new THREE.Vector3(0, 3.2, -62), new THREE.Vector3(0, 3.0, -80), new THREE.Vector3(0, 2.7, -94), new THREE.Vector3(0, 2.9, -104), new THREE.Vector3(1.2, 3.4, -116), new THREE.Vector3(-1.5, 3.45, -132), new THREE.Vector3(1.2, 3.45, -148), new THREE.Vector3(0, 3.4, -160), new THREE.Vector3(0, 3.4, -168), new THREE.Vector3(0, 3.4, -176), new THREE.Vector3(0, 3.4, -184), new THREE.Vector3(0, 3.45, -196), new THREE.Vector3(0, 3.5, -208), new THREE.Vector3(0, 3.55, -222), new THREE.Vector3(0, 3.6, -236)], false, 'catmullrom', 0.5);
+  const rail = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 2.7, 78),
+    new THREE.Vector3(0, 3.0, 62),
+    new THREE.Vector3(3, 2.6, 44),
+    new THREE.Vector3(-2.5, 2.4, 24),
+    new THREE.Vector3(1.5, 2.5, 4),
+    new THREE.Vector3(-1, 2.7, -18),
+    new THREE.Vector3(0, 3.0, -40),
+    new THREE.Vector3(0, 3.2, -62),
+    new THREE.Vector3(0, 3.0, -80),
+    new THREE.Vector3(0, 2.7, -94),
+    new THREE.Vector3(0, 2.9, -104),
+    new THREE.Vector3(1.2, 3.4, -116),
+    new THREE.Vector3(-1.5, 3.45, -132),
+    new THREE.Vector3(1.2, 3.45, -148),
+    new THREE.Vector3(0, 3.4, -160),
+    new THREE.Vector3(0, 3.4, -168),
+    new THREE.Vector3(0, 3.4, -176),
+    new THREE.Vector3(0, 3.4, -184),
+    new THREE.Vector3(0, 3.45, -196),
+    new THREE.Vector3(0, 3.5, -208),
+    new THREE.Vector3(0, 3.55, -222),
+    new THREE.Vector3(0, 3.6, -236),
+    new THREE.Vector3(0.8, 3.65, -252),
+    new THREE.Vector3(-0.8, 3.7, -272),
+    new THREE.Vector3(0, 3.75, -292),
+    new THREE.Vector3(0, 3.8, -316)
+  ], false, 'catmullrom', 0.5);
   const gk = buildGokulam(scene, haloTex);
 
   const fwd = new THREE.Vector3(), basketPos = new THREE.Vector3(0, 1, 0), moonW = new THREE.Vector3();

@@ -80,8 +80,37 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 #dots i.lock{border-style:dotted;opacity:.45}
 #err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:34px;font-size:17px;line-height:1.75;color:var(--cream-dim);font-style:italic}
 #err.show{display:flex}
-#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound{will-change:opacity}
-@media (max-width:640px){#mark{left:20px;top:22px}#dots{right:14px}#hint{padding:0 64px 0 16px;font-size:14px}#gate .meta{font-size:14px}#cd{top:64px}#card{top:20%}#next{bottom:86px}#invite{bottom:156px}#secret{top:46px;right:16px;font-size:13px}}
+#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound,#journey-bar,#hud-nav{will-change:opacity}
+
+/* ── Open World Navigation HUD & Journey Bar ── */
+#journey-bar{position:absolute;top:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;background:rgba(7,10,28,.55);border:1px solid rgba(229,181,103,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;visibility:hidden;transition:opacity 1.4s ease,visibility 1.4s;max-width:min(95vw,880px);overflow-x:auto;scrollbar-width:none}
+#journey-bar::-webkit-scrollbar{display:none}
+#journey-bar.show{opacity:1;visibility:visible}
+.j-step{background:none;border:none;color:var(--cream-dim);font-family:var(--serif);font-size:14px;letter-spacing:.05em;padding:5px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:all .3s ease}
+.j-step:hover{color:var(--gold-soft);background:rgba(229,181,103,.12)}
+.j-step.active{color:#070a1c;background:var(--gold-soft);font-weight:600;box-shadow:0 0 16px rgba(229,181,103,.4)}
+
+#hud-nav{position:absolute;bottom:24px;left:28px;display:flex;align-items:center;gap:10px;opacity:0;visibility:hidden;transition:opacity 1.4s ease,visibility 1.4s;pointer-events:auto}
+#hud-nav.show{opacity:1;visibility:visible}
+.nav-btn{cursor:pointer;font-family:var(--serif);font-size:15px;letter-spacing:.04em;color:var(--gold-soft);background:rgba(7,10,28,.42);border:1px solid rgba(229,181,103,.4);padding:10px 18px;border-radius:999px;transition:all .3s ease;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:6px;user-select:none;-webkit-user-select:none}
+.nav-btn:hover,.nav-btn:focus-visible{border-color:var(--gold-soft);background:rgba(229,181,103,.18);box-shadow:0 0 20px rgba(229,181,103,.25);transform:translateY(-1px)}
+.nav-btn:active{transform:translateY(1px);background:rgba(229,181,103,.3)}
+
+@media (max-width:760px){
+  #mark{left:16px;top:18px;font-size:13px}
+  #journey-bar{top:58px;padding:4px 8px;gap:4px;width:94vw}
+  .j-step{font-size:12px;padding:4px 8px}
+  #hud-nav{bottom:16px;left:14px;gap:6px}
+  .nav-btn{font-size:13px;padding:8px 12px}
+  #dots{display:none}
+  #hint{padding:0 64px 0 16px;font-size:13px;bottom:78px}
+  #gate .meta{font-size:14px}
+  #cd{top:64px}
+  #card{top:20%}
+  #next{bottom:86px}
+  #invite{bottom:156px}
+  #secret{top:46px;right:16px;font-size:13px}
+}
 @media (prefers-reduced-motion:reduce){#sound .bar{animation:none}}
 </style>
 <script type="importmap">{"imports":{"three":"https://cdnjs.cloudflare.com/ajax/libs/three.js/0.185.1/three.module.min.js"}}</script>
@@ -90,13 +119,27 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 <canvas id="gl"></canvas>
 <canvas id="fx"></canvas>
 <div id="ui">
+  <div id="journey-bar">
+    <button class="j-step active" data-ch="cell">1. Nishita</button>
+    <button class="j-step" data-ch="river">2. Yamuna</button>
+    <button class="j-step" data-ch="shore">3. Kadamba</button>
+    <button class="j-step" data-ch="flute">4. Venu Gaanam</button>
+    <button class="j-step" data-ch="lane">5. Utlotsavam</button>
+    <button class="j-step" data-ch="card">6. Aahvaanam</button>
+    <button class="j-step" data-ch="vrindavan">7. Vrindavan</button>
+  </div>
+  <div id="hud-nav">
+    <button class="nav-btn" id="nav-back" title="Retrace path backwards">⏴ Retrace</button>
+    <button class="nav-btn" id="nav-turn" title="Turn view 180°">↺ Turn 180°</button>
+    <button class="nav-btn" id="nav-fwd" title="Walk ahead into Gokulam">Advance ⏵</button>
+  </div>
   <div id="gate">
     <div class="date">Krishna Janmashtami, the fourth of September, 2026</div>
     <h1>GOKULAM</h1>
     <div class="sub">a midnight journey across the Yamuna</div>
     <div class="meta">Headphones on. Full screen if you can.<br>The sound you will hear is composed live, note by note.</div>
     <button class="btn" id="enter">Enter the night</button>
-    <div class="tiny">Six chapters. Take your time.</div>
+    <div class="tiny">Seven chapters. An open-world pilgrimage.</div>
   </div>
   <div id="mark">GOKULAM</div>
   <div id="card"><div class="k"></div><h2></h2><p></p></div>
@@ -783,6 +826,50 @@ function buildGokulam(scene, haloTex) {
   let finaleT = -1;
   function lightLamps() { if (finaleT < 0) finaleT = 0; }
 
+  /* chapter seven: Vrindavan & Nanda Bhavan sanctuary */
+  const VRINDAVAN_Z = -285;
+  const vrindavanGroup = new THREE.Group(); scene.add(vrindavanGroup);
+
+  // Sacred Torana Archway at entrance (Z = -248)
+  const archMat = new THREE.MeshStandardMaterial({ color: 0x5a3d28, roughness: 0.85 });
+  const vrindavanGoldMat = new THREE.MeshStandardMaterial({ color: 0xe5b567, roughness: 0.3, metalness: 0.7 });
+  const p1 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 5.5, 12), archMat); p1.position.set(-4.5, groundY(-248) + 2.75, -248); vrindavanGroup.add(p1);
+  const p2 = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.42, 5.5, 12), archMat); p2.position.set(4.5, groundY(-248) + 2.75, -248); vrindavanGroup.add(p2);
+  const archBeam = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.45, 0.6), archMat); archBeam.position.set(0, groundY(-248) + 5.3, -248); vrindavanGroup.add(archBeam);
+  const archGlow = new THREE.PointLight(0xffbe6b, 4.0, 20, 1.6); archGlow.position.set(0, groundY(-248) + 4.8, -248); vrindavanGroup.add(archGlow);
+
+  // Sacred Rangoli on ground at Vrindavan centre
+  const rangoliTex = (() => {
+    const c = document.createElement('canvas'); c.width = c.height = 512; const g = c.getContext('2d');
+    g.clearRect(0, 0, 512, 512); g.strokeStyle = '#fff8e7'; g.lineWidth = 3; g.shadowColor = '#e5b567'; g.shadowBlur = 8;
+    for (let r = 40; r <= 220; r += 45) { g.beginPath(); g.arc(256, 256, r, 0, Math.PI * 2); g.stroke(); }
+    for (let a = 0; a < Math.PI * 2; a += Math.PI / 6) { g.beginPath(); g.moveTo(256 + Math.cos(a) * 30, 256 + Math.sin(a) * 30); g.lineTo(256 + Math.cos(a) * 230, 256 + Math.sin(a) * 230); g.stroke(); }
+    const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+  })();
+  const rangoliMesh = new THREE.Mesh(new THREE.PlaneGeometry(8.5, 8.5), new THREE.MeshBasicMaterial({ map: rangoliTex, transparent: true, opacity: 0.85, depthWrite: false }));
+  rangoliMesh.rotation.x = -Math.PI / 2; rangoliMesh.position.set(0, groundY(VRINDAVAN_Z) + 0.05, VRINDAVAN_Z); vrindavanGroup.add(rangoliMesh);
+
+  // Sacred Tulasi Altar Shrine at VRINDAVAN_Z
+  const altarMat = new THREE.MeshStandardMaterial({ color: 0x8a4522, roughness: 0.9 });
+  const altarBase = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.4, 1.1, 8), altarMat); altarBase.position.set(0, groundY(VRINDAVAN_Z) + 0.55, VRINDAVAN_Z); vrindavanGroup.add(altarBase);
+  const potMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.4, 0.7, 12), new THREE.MeshStandardMaterial({ color: 0x6e2c14, roughness: 0.8 })); potMesh.position.set(0, groundY(VRINDAVAN_Z) + 1.45, VRINDAVAN_Z); vrindavanGroup.add(potMesh);
+  const tulasiBush = new THREE.Mesh(new THREE.DodecahedronGeometry(0.75, 1), new THREE.MeshStandardMaterial({ color: 0x2e6b2c, roughness: 0.7 })); tulasiBush.position.set(0, groundY(VRINDAVAN_Z) + 2.15, VRINDAVAN_Z); vrindavanGroup.add(tulasiBush);
+  const shrineDiya = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), vrindavanGoldMat); shrineDiya.position.set(0, groundY(VRINDAVAN_Z) + 1.25, VRINDAVAN_Z + 0.85); vrindavanGroup.add(shrineDiya);
+  const shrineLight = new THREE.PointLight(0xffb866, 5.0, 16, 2); shrineLight.position.set(0, groundY(VRINDAVAN_Z) + 1.5, VRINDAVAN_Z + 0.85); vrindavanGroup.add(shrineLight);
+
+  // Village Cottages (Nanda Bhavan complex)
+  const hutMat = new THREE.MeshStandardMaterial({ color: 0x5a4230, roughness: 0.95 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0x7c5a2c, roughness: 0.9 });
+  const addHut = (hx, hz, rot) => {
+    const g = new THREE.Group();
+    const b = new THREE.Mesh(new THREE.BoxGeometry(6.4, 3.4, 7.4), hutMat); b.position.y = 1.7; g.add(b);
+    const r = new THREE.Mesh(new THREE.ConeGeometry(5.4, 2.3, 4), roofMat); r.position.y = 4.4; r.rotation.y = Math.PI / 4; g.add(r);
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 0.9), new THREE.MeshBasicMaterial({ color: 0xffcb6b })); win.position.set(0, 2.0, 3.72); g.add(win);
+    const wl = new THREE.PointLight(0xffbe6b, 3.0, 11, 2); wl.position.set(0, 2.0, 4.0); g.add(wl);
+    g.position.set(hx, groundY(hz), hz); g.rotation.y = rot; vrindavanGroup.add(g);
+  };
+  addHut(-15, -265, 0.4); addHut(16, -278, -0.5); addHut(-17, -305, 0.2); addHut(17, -315, -0.3);
+
   const tmpQ = new THREE.Quaternion(), tmpE = new THREE.Euler(), tmpV = new THREE.Vector3(), tmpS = new THREE.Vector3(1, 1, 1);
   function update(dt, S, camera) {
     const t = S.time, dawn = S.dawnK, camZ = camera.position.z;
@@ -795,7 +882,7 @@ function buildGokulam(scene, haloTex) {
     }
     const fl = smooth((dawn - 0.45) / 0.25) * (1 - smooth((dawn - 0.95) / 0.05));
     flock.forEach((s, i) => { const u = s.userData; const k = ((t * 0.045 + i * 0.01) % 1); s.position.set(-90 + k * 180 + u.ox, 22 + u.oy + Math.sin(t * 1.8 + u.ph) * 0.4, camZ - 70 + u.oz); s.material.opacity = fl * 0.85; s.scale.y = 0.8 * (0.6 + 0.4 * Math.abs(Math.sin(t * 6 + u.ph))); });
-    flute.visible = camZ < -140;
+    flute.visible = camZ < -140 && camZ > -230;
     if (flute.visible) { flute.position.set(FLUTE_POS.x, groundY(FLUTE_POS.z) + 1.3 + Math.sin(t * 0.8) * 0.06, FLUTE_POS.z); flute.rotation.set(Math.sin(t * 0.5) * 0.08, Math.sin(t * 0.3) * 0.18, Math.sin(t * 0.7) * 0.05); fluteLight.intensity *= Math.pow(0.02, dt); for (const g of holeGlows) g.material.opacity *= Math.pow(0.05, dt); }
     for (const r of rings) if (r.life > 0) { r.life -= dt * 0.9; const k = 1 - r.life; r.m.scale.setScalar(0.3 + k * 2.4); r.m.material.opacity = (1 - k) * 0.8; r.m.lookAt(camera.position); if (r.life <= 0) r.m.visible = false; }
     for (const b of blooms) if (b.life > 0) { b.life -= dt * 0.4; b.vel.y -= dt * 0.9; b.vel.multiplyScalar(1 - dt * 0.6); b.m.position.addScaledVector(b.vel, dt); b.m.rotation.y += b.sp * dt; b.m.rotation.z += Math.sin(t * 3) * dt; b.m.material.opacity = Math.min(1, b.life * 2); if (b.life <= 0) b.m.visible = false; }
@@ -806,7 +893,7 @@ function buildGokulam(scene, haloTex) {
     lamps.forEach((s, i) => { s.material.opacity = (0.55 + 0.15 * Math.sin(t * 5 + i)) * (1 - dawn * 0.6); });
     if (flute.visible) guides.forEach((g, i) => { const target = guideOn * (i === hotHole ? 1 : 0.28 + 0.12 * Math.sin(t * 2 + i)); g.material.opacity += (target - g.material.opacity) * Math.min(1, dt * 8); g.scale.setScalar(i === hotHole ? 0.36 : 0.22); });
     for (const P of pots) { const e = P.pot.material.emissive; e.setRGB(0.25 * P.hot, 0.16 * P.hot, 0.05 * P.hot); }
-    card.visible = camZ < -200;
+    card.visible = camZ < -200 && camZ > -250;
     if (card.visible) {
       tilt.lerp(tiltT, Math.min(1, dt * 4));
       const hf = Math.tan(camera.fov * Math.PI / 360) * camera.aspect; card.scale.setScalar(clamp(0.74 * 2 * 4.6 * hf / 1.64, 0.9, 3.4));
@@ -820,7 +907,7 @@ function buildGokulam(scene, haloTex) {
       diyaGeo.attributes.position.needsUpdate = true; diyaMat.uniforms.uTime.value = t; diyaMat.uniforms.uOpacity.value = Math.min(1, finaleT * 0.4);
     }
   }
-  return { update, playNote, tapPot, hoverPot, potsLeft, breakPot, pots, groundY, NOTES, flute, FLUTE_Z: FLUTE_POS.z, LANE_Z, CARD_Z, holes, holeNDC, setGuides, rayHit, card, setCardName, setTilt, lightLamps, finaleOn: () => finaleT >= 0 };
+  return { update, playNote, tapPot, hoverPot, potsLeft, breakPot, pots, groundY, NOTES, flute, FLUTE_Z: FLUTE_POS.z, LANE_Z, CARD_Z, VRINDAVAN_Z, holes, holeNDC, setGuides, rayHit, card, setCardName, setTilt, lightLamps, finaleOn: () => finaleT >= 0 };
 }
 /* ───────────────────────── procedural textures ───────────────────────── */
 function radialTex() {
@@ -1015,7 +1102,34 @@ function buildRiver() {
   const village = new THREE.Points(vGeo, villageMat); village.frustumCulled = false; scene.add(village);
   const villageGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xe5a24a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0 })); villageGlow.position.set(0, 6, -150); villageGlow.scale.set(260, 60, 1); scene.add(villageGlow);
 
-  const rail = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 3.0, 62), new THREE.Vector3(3, 2.6, 44), new THREE.Vector3(-2.5, 2.4, 24), new THREE.Vector3(1.5, 2.5, 4), new THREE.Vector3(-1, 2.7, -18), new THREE.Vector3(0, 3.0, -40), new THREE.Vector3(0, 3.2, -62), new THREE.Vector3(0, 3.0, -80), new THREE.Vector3(0, 2.7, -94), new THREE.Vector3(0, 2.9, -104), new THREE.Vector3(1.2, 3.4, -116), new THREE.Vector3(-1.5, 3.45, -132), new THREE.Vector3(1.2, 3.45, -148), new THREE.Vector3(0, 3.4, -160), new THREE.Vector3(0, 3.4, -168), new THREE.Vector3(0, 3.4, -176), new THREE.Vector3(0, 3.4, -184), new THREE.Vector3(0, 3.45, -196), new THREE.Vector3(0, 3.5, -208), new THREE.Vector3(0, 3.55, -222), new THREE.Vector3(0, 3.6, -236)], false, 'catmullrom', 0.5);
+  const rail = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 2.7, 78),
+    new THREE.Vector3(0, 3.0, 62),
+    new THREE.Vector3(3, 2.6, 44),
+    new THREE.Vector3(-2.5, 2.4, 24),
+    new THREE.Vector3(1.5, 2.5, 4),
+    new THREE.Vector3(-1, 2.7, -18),
+    new THREE.Vector3(0, 3.0, -40),
+    new THREE.Vector3(0, 3.2, -62),
+    new THREE.Vector3(0, 3.0, -80),
+    new THREE.Vector3(0, 2.7, -94),
+    new THREE.Vector3(0, 2.9, -104),
+    new THREE.Vector3(1.2, 3.4, -116),
+    new THREE.Vector3(-1.5, 3.45, -132),
+    new THREE.Vector3(1.2, 3.45, -148),
+    new THREE.Vector3(0, 3.4, -160),
+    new THREE.Vector3(0, 3.4, -168),
+    new THREE.Vector3(0, 3.4, -176),
+    new THREE.Vector3(0, 3.4, -184),
+    new THREE.Vector3(0, 3.45, -196),
+    new THREE.Vector3(0, 3.5, -208),
+    new THREE.Vector3(0, 3.55, -222),
+    new THREE.Vector3(0, 3.6, -236),
+    new THREE.Vector3(0.8, 3.65, -252),
+    new THREE.Vector3(-0.8, 3.7, -272),
+    new THREE.Vector3(0, 3.75, -292),
+    new THREE.Vector3(0, 3.8, -316)
+  ], false, 'catmullrom', 0.5);
   const gk = buildGokulam(scene, haloTex);
 
   const fwd = new THREE.Vector3(), basketPos = new THREE.Vector3(0, 1, 0), moonW = new THREE.Vector3();
@@ -1073,7 +1187,8 @@ const river = buildRiver();
 const gk = river.gk;
 
 const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret');
-for (let i = 0; i < 6; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
+const journeyBar = $('#journey-bar'), hudNav = $('#hud-nav'), navBack = $('#nav-back'), navTurn = $('#nav-turn'), navFwd = $('#nav-fwd');
+for (let i = 0; i < 7; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
 const dotEls = dotsEl.querySelectorAll('i');
 function dots(i) { dotEls.forEach((d, k) => d.classList.toggle('on', k === i)); }
 let cardTimer = 0;
@@ -1147,7 +1262,7 @@ enterBtn.addEventListener('click', () => {
   S.mode = 'cell'; S.modeT = 0;
   tweenCam(CELL_POS, CELL_TGT, 5.2);
   setTimeout(() => card('Chapter one', 'Nishita', 'Mathura. A prison cell. The eighth night of the dark fortnight.', 6500), 1800);
-  setTimeout(() => { markEl.classList.add('show'); soundBtn.classList.add('show'); dotsEl.classList.add('show'); dots(0); }, 4300);
+  setTimeout(() => { markEl.classList.add('show'); soundBtn.classList.add('show'); dotsEl.classList.add('show'); journeyBar.classList.add('show'); hudNav.classList.add('show'); dots(0); }, 4300);
   setTimeout(() => { if (S.mode !== 'cell') return; cdEl.classList.add('show'); setHint(isMobile ? 'Drag to look around. Wait for midnight, or witness now.' : 'Move the mouse to look around. Wait for midnight, or witness the birth now.'); }, 9000);
   setTimeout(() => { if (S.mode === 'cell') witnessBtn.classList.add('show'); }, 10500);
 });
@@ -1177,63 +1292,115 @@ function updateBirth(dt) {
   if (bt >= 11.5) startRiver();
 }
 
-/* ───────────────────────── the road: chapters two to six ───────────────────────── */
+/* ───────────────────────── the open world road: chapters one to seven ───────────────────────── */
 const RAIL_LEN = river.rail.getLength();
 const M = m => m / RAIL_LEN;                      // metres → rail units
 function tAtZ(z) { for (let i = 0; i <= 3000; i++) { const u = i / 3000; if (river.rail.getPointAt(u).z <= z) return u; } return 1; }
-const STATIONS = [{ name: 'flute', t: tAtZ(-166.5), z: -166.5 }, { name: 'lane', t: tAtZ(-193), z: -193 }, { name: 'card', t: tAtZ(-216.4), z: -216.4 }];
-const MILESTONES = [tAtZ(-98), tAtZ(-124), STATIONS[0].t, STATIONS[1].t, STATIONS[2].t, 1];
-const NEXT_LABEL = { river: 'Cross the river', shore: 'Walk on', grove: 'Walk on', flute: 'Continue the journey', lane: 'Continue the journey', card: 'Light the lamps' };
-const MAXV = M(5.5);
-const WALK = () => M(S.chapter === 'river' ? 3.0 : 2.4), DRIFT = () => M(S.chapter === 'river' ? 0.7 : 0.55);
-function stationHere() { for (const st of STATIONS) if (Math.abs(S.t - st.t) < M(1.5)) return st; return null; }
-function walkTo(goal) { S.goal = clamp(goal, 0, 1); S.push = 0; }
-function nextMilestone() { for (const m of MILESTONES) if (m > S.t + M(2)) return m; return 1; }
+const STATIONS = [
+  { name: 'cell', t: 0.0, z: 78, label: '1. Nishita' },
+  { name: 'river', t: tAtZ(15), z: 15, label: '2. Yamuna' },
+  { name: 'shore', t: tAtZ(-104), z: -104, label: '3. Kadamba' },
+  { name: 'flute', t: tAtZ(-166.5), z: -166.5, label: '4. Venu Gaanam' },
+  { name: 'lane', t: tAtZ(-193), z: -193, label: '5. Utlotsavam' },
+  { name: 'card', t: tAtZ(-221), z: -221, label: '6. Aahvaanam' },
+  { name: 'vrindavan', t: tAtZ(-285), z: -285, label: '7. Vrindavan' }
+];
+const MILESTONES = STATIONS.map(s => s.t);
+const NEXT_LABEL = {
+  river: 'Reach the shore',
+  shore: 'Walk into Gokulam',
+  grove: 'Follow the morning',
+  flute: 'Follow the laughter',
+  lane: 'The golden card',
+  card: 'Enter Vrindavan',
+  vrindavan: 'Retrace to Yamuna'
+};
+const MAXV = M(14.0);
+const WALK = () => M(S.chapter === 'river' ? 3.6 : 3.2);
+let lookForward = true;
+const targetLook = new THREE.Vector3();
+
+function stationHere() {
+  for (const st of STATIONS) if (Math.abs(S.t - st.t) < M(3.5)) return st;
+  return null;
+}
+function walkTo(targetT) {
+  lookForward = (targetT >= S.t);
+  S.goal = clamp(targetT, 0, 1);
+}
+function travelToStation(targetT) {
+  if (S.mode === 'cell' || S.mode === 'gate') {
+    startRiver();
+    setTimeout(() => { walkTo(targetT); }, 600);
+    return;
+  }
+  if (S.mode !== 'river') return;
+  walkTo(targetT);
+}
+function nextMilestone() {
+  for (const m of MILESTONES) if (m > S.t + M(3)) return m;
+  return 1;
+}
+function prevMilestone() {
+  for (let i = MILESTONES.length - 1; i >= 0; i--) if (MILESTONES[i] < S.t - M(3)) return MILESTONES[i];
+  return 0;
+}
 function advance(mps) {
   if (S.mode !== 'river') return;
-  if (S.goal !== null && mps > 0) { S.vel = Math.min(MAXV, S.vel + M(mps)); return; }
   S.goal = null;
-  const st = stationHere();
-  if (st && mps > 0 && !st.released) { S.push += mps; if (S.push > 6) { st.released = true; S.vel = WALK() * 0.6; } return; }
+  if (mps > 0.1) lookForward = true;
+  else if (mps < -0.1) lookForward = false;
   S.vel = clamp(S.vel + M(mps), -MAXV, MAXV);
 }
 function updateWalk(dt) {
-  const st = stationHere();
   if (S.goal !== null) {
     const dist = S.goal - S.t, dir = Math.sign(dist);
-    const desired = dir * Math.min(WALK(), Math.sqrt(2 * M(0.9) * Math.abs(dist)));
-    S.vel += (desired - S.vel) * Math.min(1, dt * 3);
-    if (Math.abs(dist) < M(0.15)) { S.t = S.goal; S.vel = 0; S.goal = null; }
+    if (Math.abs(dist) > M(0.5)) lookForward = (dir >= 0);
+    const desired = dir * Math.min(WALK() * 2.5, Math.max(M(1.2), Math.sqrt(2 * M(3.2) * Math.abs(dist))));
+    S.vel += (desired - S.vel) * Math.min(1, dt * 4.5);
+    if (Math.abs(dist) < M(0.12)) { S.t = S.goal; S.vel = 0; S.goal = null; }
   } else {
-    const base = (!st && S.chapter !== 'end' && S.t < 0.999) ? DRIFT() : 0;
-    S.vel = base + (S.vel - base) * Math.exp(-dt * 2.4);
-    if (st && !st.released && S.vel > 0 && S.t + S.vel * dt > st.t) { S.t = st.t; S.vel = 0; }
+    S.vel *= Math.exp(-dt * 2.8);
   }
-  if (st && !st.released && S.goal !== null && S.goal > st.t + M(1)) S.goal = st.t;
   S.t = clamp(S.t + S.vel * dt, 0, 1);
 }
 function startRiver() {
   S.mode = 'river'; S.chapter = 'river'; S.chapterT = 0; S.modeT = 0; S.t = 0; S.vel = 0; S.goal = null; S.white = 1; S.exposure = 1; post.rayStrength = 0; S.yawT = 0; S.pitchT = 0; S.nextFlash = S.time + 2.5; cam.tween = null;
+  lookForward = true;
+  journeyBar.classList.add('show');
+  hudNav.classList.add('show');
   if (sound.on) { sound.setSmooth('rain', 0.3); sound.setSmooth('wind', 0.12); sound.setSmooth('water', 0.22); sound.setSmooth('crickets', 0); sound.setSmooth('tanpura', 0.1); }
   setTimeout(() => card('Chapter two', 'Yamuna', 'The storm bows. The river rises to touch His feet.', 6500), 2800);
-  setTimeout(() => { if (S.chapter === 'river') { setHint(isMobile ? 'Swipe up to move faster. Drag to look. Your finger steers the wind.' : 'Scroll to move faster. The mouse looks around and steers the wind.'); setNext(NEXT_LABEL.river); } }, 6000);
+  setTimeout(() => { if (S.chapter === 'river') { setHint(isMobile ? 'Use buttons below or swipe to walk. Drag to look 360°.' : 'Scroll or use W/S / navigation buttons. Mouse looks around in 360°.'); setNext(NEXT_LABEL.river); } }, 6000);
   dots(1);
 }
 const CHAPTER = {
-  shore: () => { card('Gokulam', 'The far bank', 'The rain lets go. Somewhere ahead, a village is still asleep.', 7000); setHint(''); setNext(NEXT_LABEL.shore); if (sound.on) { sound.setSmooth('crickets', 0.05); sound.motif(); } },
-  grove: () => { card('Chapter three', 'Gokulam wakes', 'Kadamba trees, fireflies, the first birds of the morning.', 7000); dots(2); setHint(isMobile ? 'Swipe up to walk. Look up for the feathers.' : 'Scroll to walk. Look up for the feathers.'); setNext(NEXT_LABEL.grove); if (sound.on) { sound.birdsOn = true; sound.setSmooth('tanpura', 0.2); } },
-  flute: () => { card('Chapter four', 'Venu Gaanam', 'His flute is waiting for your hand.', 7000); dots(3); setHint(isMobile ? 'Drag your finger across the flute, or tap a hole.' : 'Glide the mouse across the flute, or tap a hole. Keys 1 to 8 play too.'); setNext(''); S.notes = 0; S.idle = -9; gk.setGuides(1, -1); if (sound.on) sound.setSmooth('tanpura', 0.12); setTimeout(() => playPhrase(PHRASES[0]), 2400); },
-  lane: () => { card('Chapter five', 'Utlotsavam', 'Seven pots of butter hang over the lane. He would not leave one whole.', 7000); dots(4); setHint(isMobile ? 'Tap a pot to break it.' : 'Click a pot to break it.'); setNext(''); gk.setGuides(0, -1); if (sound.on) { sound.dholOn = true; sound.setSmooth('tanpura', 0.15); } },
-  card: () => { card('Chapter six', 'Aahvaanam', 'An invitation, written in gold, for whoever you carry in your heart.', 8000); dots(5); setHint(isMobile ? 'Tilt your phone to turn the card.' : 'Move the mouse to turn the card.'); setNext(''); setTimeout(() => { if (S.chapter === 'card') { inviteEl.classList.add('show'); setNext(NEXT_LABEL.card); } }, 5000); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.26); sound.birdsOn = true; } if (isMobile) askGyro(); },
-  end: () => { setNext(''); },
+  river: () => { dots(1); if (sound.on) { sound.dholOn = false; sound.setSmooth('rain', 0.28); sound.setSmooth('water', 0.22); } },
+  shore: () => { card('Gokulam', 'The far bank', 'The rain lets go. Somewhere ahead, a village is still asleep.', 7000); setHint(''); setNext(NEXT_LABEL.shore); dots(2); if (sound.on) { sound.setSmooth('crickets', 0.05); sound.motif(); } },
+  grove: () => { card('Chapter three', 'Gokulam wakes', 'Kadamba trees, fireflies, the first birds of the morning.', 7000); dots(2); setHint(isMobile ? 'Walk ahead into the grove. Look up for peacock feathers.' : 'Follow the morning path. Look up for the peacock feathers.'); setNext(NEXT_LABEL.grove); if (sound.on) { sound.birdsOn = true; sound.setSmooth('tanpura', 0.2); } },
+  flute: () => { card('Chapter four', 'Venu Gaanam', 'His flute is waiting for your hand.', 7000); dots(3); setHint(isMobile ? 'Drag your finger across the flute, or tap a hole.' : 'Glide the mouse across the flute, or tap a hole. Keys 1 to 8 play too.'); setNext(NEXT_LABEL.flute); S.notes = 0; S.idle = -9; gk.setGuides(1, -1); if (sound.on) sound.setSmooth('tanpura', 0.12); setTimeout(() => playPhrase(PHRASES[0]), 2400); },
+  lane: () => { card('Chapter five', 'Utlotsavam', 'Seven pots of butter hang over the lane. He would not leave one whole.', 7000); dots(4); setHint(isMobile ? 'Tap a pot to break it. Walk ahead or back anytime.' : 'Click a pot to break it. Advance or retrace anytime.'); setNext(NEXT_LABEL.lane); gk.setGuides(0, -1); if (sound.on) { sound.dholOn = true; sound.setSmooth('tanpura', 0.15); } },
+  card: () => { card('Chapter six', 'Aahvaanam', 'An invitation, written in gold, for whoever you carry in your heart.', 8000); dots(5); setHint(isMobile ? 'Tilt phone or drag to turn card. Advance to enter Vrindavan.' : 'Move mouse to turn card. Advance to enter Vrindavan.'); setNext(NEXT_LABEL.card); setTimeout(() => { if (S.chapter === 'card') { inviteEl.classList.add('show'); } }, 4000); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.26); sound.birdsOn = true; } if (isMobile) askGyro(); },
+  vrindavan: () => { card('Chapter seven', 'Vrindavan Sanctuary', 'Nanda Bhavan welcomes the Lord. The sacred journey lives forever in Gokulam.', 8000); dots(6); setHint(isMobile ? 'Explore the village sanctuary. Retrace path back to Yamuna anytime.' : 'Explore Nanda Bhavan. Retrace path back to Yamuna anytime.'); setNext(NEXT_LABEL.vrindavan); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.28); sound.birdsOn = true; const n = sound.ctx.currentTime; sound.bell(n + 0.4, 880, 0.4); sound.bell(n + 1.2, 1320, 0.3); } },
+  end: () => { setNext(''); }
 };
-function setChapter(c) { if (S.chapter === c) return; S.chapter = c; S.chapterT = 0; (CHAPTER[c] || (() => {}))(); }
+function setChapter(c) {
+  if (S.chapter === c) return;
+  S.chapter = c;
+  S.chapterT = 0;
+  (CHAPTER[c] || (() => {}))();
+  document.querySelectorAll('.j-step').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ch === c || (c === 'grove' && btn.dataset.ch === 'shore'));
+  });
+}
 function updateRiver(dt) {
   S.white = 1 - smooth((S.modeT - 0.4) / 3.2);
   S.chapterT += dt;
   updateWalk(dt);
   const camP = river.rail.getPointAt(clamp(S.t, 0, 1)); const camZ = camP.z;
-  const ahead = river.rail.getPointAt(clamp(S.t + M(6), 0, 1));
+  const lookOffset = lookForward ? M(7.5) : -M(7.5);
+  const lookPoint = river.rail.getPointAt(clamp(S.t + lookOffset, 0, 1));
+  const ahead = lookPoint;
   S.storm = 1 - smooth((-camZ - 52) / 40) * 0.96;
   S.dawnK = smooth((-camZ - 82) / 62);
   S.dawn = 0.42 * smooth((S.dawnK - 0.05) / 0.4) * (1 - 0.6 * smooth((S.dawnK - 0.7) / 0.3));
@@ -1242,18 +1409,37 @@ function updateRiver(dt) {
   const bP = river.rail.getPointAt(clamp(S.t + M(6), 0, 1)); bP.y = 0.62 + Math.sin(S.time * 1.6) * 0.1;
   river.setBasket(bP);
   cam.pos.copy(camP);
-  const st = stationHere();
-  S.locked = !!st && !st.released && (S.chapter === 'flute' || S.chapter === 'lane' || S.chapter === 'card');
-  if (S.chapter === 'flute') cam.tgt.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
-  else if (S.chapter === 'lane') cam.tgt.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
-  else if (S.chapter === 'card' || S.chapter === 'end') cam.tgt.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
-  else if (S.basketK > 0.5) cam.tgt.set(bP.x, bP.y + 0.9, bP.z - 9);
-  else cam.tgt.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
-  if (S.chapter !== 'end') { if (camZ > -88) setChapter('river'); else if (camZ > -104) setChapter('shore'); else if (camZ > -161) setChapter('grove'); else if (camZ > -184) setChapter('flute'); else if (camZ > -208) setChapter('lane'); else setChapter('card'); }
-  else if (camZ > -208) { S.chapter = 'lane'; setChapter(camZ > -88 ? 'river' : camZ > -104 ? 'shore' : camZ > -161 ? 'grove' : camZ > -184 ? 'flute' : 'lane'); }
-  if ((S.chapter === 'river' || S.chapter === 'shore' || S.chapter === 'grove') && S.goal === null && S.chapterT > 8 && !nextBtn.classList.contains('show')) setNext(NEXT_LABEL[S.chapter]);
-  if (S.chapter === 'flute') { S.idle += dt; if (S.idle > 11) { S.idle = -8; playPhrase(PHRASES[Math.floor(Math.random() * PHRASES.length)]); } if (!nextBtn.classList.contains('show') && (S.notes >= 4 || S.chapterT > 14)) setNext(NEXT_LABEL.flute); }
-  if (S.chapter === 'lane') { if (gk.potsLeft() === 0) finale(); else if (!nextBtn.classList.contains('show') && (gk.potsLeft() < 7 || S.chapterT > 18)) setNext(NEXT_LABEL.lane); }
+
+  // Dynamic 3D Camera LookAt Kinematics
+  if (S.chapter === 'flute' && lookForward && Math.abs(camZ - gk.FLUTE_Z) < 8) {
+    targetLook.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
+  } else if (S.chapter === 'lane' && lookForward && Math.abs(camZ - gk.LANE_Z) < 9) {
+    targetLook.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
+  } else if (S.chapter === 'card' && lookForward && Math.abs(camZ - gk.CARD_Z) < 10) {
+    targetLook.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
+  } else if (S.chapter === 'vrindavan' && lookForward && Math.abs(camZ - gk.VRINDAVAN_Z) < 14) {
+    targetLook.set(0, gk.groundY(gk.VRINDAVAN_Z) + 2.1, gk.VRINDAVAN_Z);
+  } else if (S.basketK > 0.5 && lookForward) {
+    targetLook.set(bP.x, bP.y + 0.9, bP.z - 9);
+  } else if (!lookForward) {
+    targetLook.set(ahead.x, ahead.y + 0.15, ahead.z + 6);
+  } else {
+    targetLook.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
+  }
+  cam.tgt.lerp(targetLook, Math.min(1, dt * 5.0));
+
+  // Determine chapter based on Z
+  if (camZ > -88) setChapter('river');
+  else if (camZ > -104) setChapter('shore');
+  else if (camZ > -158) setChapter('grove');
+  else if (camZ > -184) setChapter('flute');
+  else if (camZ > -208) setChapter('lane');
+  else if (camZ > -248) setChapter('card');
+  else setChapter('vrindavan');
+
+  if (S.chapter === 'flute') { S.idle += dt; if (S.idle > 11) { S.idle = -8; playPhrase(PHRASES[Math.floor(Math.random() * PHRASES.length)]); } }
+  if (S.chapter === 'lane' && gk.potsLeft() === 0) finale();
+
   post.lightPos.copy(river.moonWorld()); post.rayStrength = 0.14 * (0.5 + 0.5 * S.storm) * (1 - S.dawnK);
   if (sound.on) {
     const inland = smooth((-camZ - 96) / 30);
@@ -1269,20 +1455,47 @@ function finale() {
   if (finaleDone) return; finaleDone = true;
   if (sound.on) { const n = sound.ctx.currentTime; [660, 880, 1100, 1320, 1760].forEach((f, i) => sound.bell(n + 0.15 * i, f, 0.4)); for (let i = 0; i < 8; i++) sound.dholHit(n + 0.12 * i, i % 3 === 2 ? 'tin' : 'dha', 0.6); }
   card('Utlotsavam', 'Seven pots, seven laughs.', 'Every mother in Gokulam has hidden her butter. None of it is safe.', 5000);
-  setHint(''); setNext(NEXT_LABEL.lane); for (const st of STATIONS) if (st.name === 'lane') st.released = true;
-  setTimeout(() => { if (S.chapter === 'lane') walkTo(STATIONS[2].t); }, 5500);
+  setHint(''); setNext(NEXT_LABEL.lane);
+  setTimeout(() => { if (S.chapter === 'lane') walkTo(STATIONS[5].t); }, 5500);
 }
 function lightLamps() {
   if (gk.finaleOn()) return; gk.lightLamps(); setNext(''); inviteEl.classList.remove('show');
   if (sound.on) { const n = sound.ctx.currentTime; sound.conch(n); [0, 1, 2, 3, 4, 7].forEach((k, i) => sound.bell(n + 1.6 + i * 0.22, 293.66 * gk.NOTES[k] * 2, 0.35)); setTimeout(() => sound.motif(), 2600); sound.setSmooth('tanpura', 0.3); }
   setTimeout(() => card('Gokulam', 'A thousand lamps', 'One for every year He has been loved. Jai Sri Krishna.', 9000), 2500);
-  setTimeout(() => { setChapter('end'); const found = Object.values(S.secrets).filter(Boolean).length; setHint(isMobile ? `Drag to look around. Swipe down to walk the road again. ${found} of 3 secrets found.` : `Move to look around. Scroll up to walk the road again. ${found} of 3 secrets found.`); inviteEl.classList.add('show'); }, 12000);
+  setTimeout(() => { const found = Object.values(S.secrets).filter(Boolean).length; setHint(isMobile ? `Drag to look around. Explore Vrindavan ahead. ${found} of 3 secrets found.` : `Move to look around. Explore Vrindavan ahead or retrace path anytime. ${found} of 3 secrets found.`); inviteEl.classList.add('show'); setNext(NEXT_LABEL.card); }, 12000);
 }
 nextBtn.addEventListener('click', () => {
   if (S.mode !== 'river') return;
-  if (S.chapter === 'card') { lightLamps(); return; }
-  const st = stationHere(); if (st) st.released = true;
+  if (S.chapter === 'card') {
+    lightLamps();
+    setTimeout(() => {
+      const st = STATIONS.find(s => s.name === 'vrindavan');
+      if (st) travelToStation(st.t);
+    }, 4500);
+    return;
+  }
+  if (S.chapter === 'vrindavan') {
+    travelToStation(0);
+    return;
+  }
   walkTo(nextMilestone()); setNext('');
+});
+
+// Attach Navigation HUD handlers
+navFwd.addEventListener('click', () => advance(lookForward ? 4.5 : -4.5));
+navBack.addEventListener('click', () => advance(lookForward ? -4.5 : 4.5));
+navTurn.addEventListener('click', () => { lookForward = !lookForward; });
+
+document.querySelectorAll('.j-step').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const ch = btn.dataset.ch;
+    if (ch === 'cell') {
+      if (S.mode === 'river') travelToStation(0);
+      return;
+    }
+    const st = STATIONS.find(s => s.name === ch);
+    if (st) travelToStation(st.t);
+  });
 });
 
 /* ───────────────────────── the invitation: name, link, share, tilt ───────────────────────── */
@@ -1367,15 +1580,39 @@ addEventListener('pointermove', e => {
     flutePointer(nx, -ny, true);
   }
 });
-addEventListener('wheel', e => { e.preventDefault(); advance(clamp(e.deltaY, -160, 160) * 0.03); }, { passive: false });
+addEventListener('wheel', e => {
+  e.preventDefault();
+  const dir = e.deltaY > 0 ? 1 : -1;
+  advance((lookForward ? 1 : -1) * dir * 3.8);
+}, { passive: false });
 addEventListener('touchmove', e => e.preventDefault(), { passive: false });
 addEventListener('keydown', e => {
   if (e.target === nameInput) return;
-  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') { if (S.mode === 'gate') enterBtn.click(); else advance(3.2); e.preventDefault(); }
-  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') { advance(-3.2); e.preventDefault(); }
-  else if (e.key === 'm' || e.key === 'M') toggleSound();
-  else if (e.key >= '1' && e.key <= '8' && S.chapter === 'flute') { gk.playNote(+e.key - 1); S.notes++; S.idle = 0; }
-  else if (e.key === 'Enter') { if (S.mode === 'gate') enterBtn.click(); else if (S.mode === 'cell') startBirth(); else if (nextBtn.classList.contains('show')) nextBtn.click(); }
+  if (e.key === 'w' || e.key === 'W' || e.key === 'ArrowUp' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+    if (S.mode === 'gate') enterBtn.click();
+    else advance(lookForward ? 3.8 : -3.8);
+    e.preventDefault();
+  } else if (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'PageUp') {
+    advance(lookForward ? -3.8 : 3.8);
+    e.preventDefault();
+  } else if (e.key === 'a' || e.key === 'A') {
+    S.yawT = clamp(S.yawT + 0.18, -1.2, 1.2);
+    e.preventDefault();
+  } else if (e.key === 'd' || e.key === 'D') {
+    S.yawT = clamp(S.yawT - 0.18, -1.2, 1.2);
+    e.preventDefault();
+  } else if (e.key === 'r' || e.key === 'R') {
+    lookForward = !lookForward;
+    e.preventDefault();
+  } else if (e.key === 'm' || e.key === 'M') {
+    toggleSound();
+  } else if (e.key >= '1' && e.key <= '8' && S.chapter === 'flute') {
+    gk.playNote(+e.key - 1); S.notes++; S.idle = 0;
+  } else if (e.key === 'Enter') {
+    if (S.mode === 'gate') enterBtn.click();
+    else if (S.mode === 'cell') startBirth();
+    else if (nextBtn.classList.contains('show')) nextBtn.click();
+  }
 });
 function toggleSound() { if (!sound.on) return; sound.setMuted(!sound.muted); soundBtn.classList.toggle('muted', sound.muted); }
 soundBtn.addEventListener('click', toggleSound);
@@ -1430,7 +1667,7 @@ function frame(now) {
   post.render((S.mode === 'gate' || S.mode === 'cell' || S.mode === 'birth') ? cell.scene : river.scene, camera, S.time);
   drawTrail(dt);
 }
-window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
+window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, travelToStation, lookForward: () => lookForward, turnAround: () => { lookForward = !lookForward; }, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
 window.__gokulamReady = true;
 requestAnimationFrame(frame);
 </script>

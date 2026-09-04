@@ -80,30 +80,12 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 #dots i.lock{border-style:dotted;opacity:.45}
 #err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:34px;font-size:17px;line-height:1.75;color:var(--cream-dim);font-style:italic}
 #err.show{display:flex}
-#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound,#journey-bar,#hud-nav{will-change:opacity}
-
-/* ── Open World Navigation HUD & Journey Bar ── */
-#journey-bar{position:absolute;top:20px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px 14px;border-radius:999px;background:rgba(7,10,28,.55);border:1px solid rgba(229,181,103,.35);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);opacity:0;visibility:hidden;transition:opacity 1.4s ease,visibility 1.4s;max-width:min(95vw,880px);overflow-x:auto;scrollbar-width:none}
-#journey-bar::-webkit-scrollbar{display:none}
-#journey-bar.show{opacity:1;visibility:visible}
-.j-step{background:none;border:none;color:var(--cream-dim);font-family:var(--serif);font-size:14px;letter-spacing:.05em;padding:5px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;transition:all .3s ease}
-.j-step:hover{color:var(--gold-soft);background:rgba(229,181,103,.12)}
-.j-step.active{color:#070a1c;background:var(--gold-soft);font-weight:600;box-shadow:0 0 16px rgba(229,181,103,.4)}
-
-#hud-nav{position:absolute;bottom:24px;left:28px;display:flex;align-items:center;gap:10px;opacity:0;visibility:hidden;transition:opacity 1.4s ease,visibility 1.4s;pointer-events:auto}
-#hud-nav.show{opacity:1;visibility:visible}
-.nav-btn{cursor:pointer;font-family:var(--serif);font-size:15px;letter-spacing:.04em;color:var(--gold-soft);background:rgba(7,10,28,.42);border:1px solid rgba(229,181,103,.4);padding:10px 18px;border-radius:999px;transition:all .3s ease;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);display:flex;align-items:center;gap:6px;user-select:none;-webkit-user-select:none}
-.nav-btn:hover,.nav-btn:focus-visible{border-color:var(--gold-soft);background:rgba(229,181,103,.18);box-shadow:0 0 20px rgba(229,181,103,.25);transform:translateY(-1px)}
-.nav-btn:active{transform:translateY(1px);background:rgba(229,181,103,.3)}
+#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound{will-change:opacity}
 
 @media (max-width:760px){
   #mark{left:16px;top:18px;font-size:13px}
-  #journey-bar{top:58px;padding:4px 8px;gap:4px;width:94vw}
-  .j-step{font-size:12px;padding:4px 8px}
-  #hud-nav{bottom:16px;left:14px;gap:6px}
-  .nav-btn{font-size:13px;padding:8px 12px}
   #dots{display:none}
-  #hint{padding:0 64px 0 16px;font-size:13px;bottom:78px}
+  #hint{padding:0 64px 0 16px;font-size:13px;bottom:30px}
   #gate .meta{font-size:14px}
   #cd{top:64px}
   #card{top:20%}
@@ -119,20 +101,6 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 <canvas id="gl"></canvas>
 <canvas id="fx"></canvas>
 <div id="ui">
-  <div id="journey-bar">
-    <button class="j-step active" data-ch="cell">1. Nishita</button>
-    <button class="j-step" data-ch="river">2. Yamuna</button>
-    <button class="j-step" data-ch="shore">3. Kadamba</button>
-    <button class="j-step" data-ch="flute">4. Venu Gaanam</button>
-    <button class="j-step" data-ch="lane">5. Utlotsavam</button>
-    <button class="j-step" data-ch="card">6. Aahvaanam</button>
-    <button class="j-step" data-ch="vrindavan">7. Vrindavan</button>
-  </div>
-  <div id="hud-nav">
-    <button class="nav-btn" id="nav-back" title="Retrace path backwards">⏴ Retrace</button>
-    <button class="nav-btn" id="nav-turn" title="Turn view 180°">↺ Turn 180°</button>
-    <button class="nav-btn" id="nav-fwd" title="Walk ahead into Gokulam">Advance ⏵</button>
-  </div>
   <div id="gate">
     <div class="date">Krishna Janmashtami, the fourth of September, 2026</div>
     <h1>GOKULAM</h1>

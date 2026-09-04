@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Gokulam — a midnight journey</title>
+<meta name="theme-color" content="#070a1c">
+<style>
+:root{
+  --night:#070a1c;
+  --gold:#e5b567;
+  --gold-soft:#f3d89a;
+  --teal:#2fb59f;
+  --cream:#f1e8d6;
+  --cream-dim:rgba(241,232,214,.58);
+  --serif:"Cormorant Garamond","Cormorant","EB Garamond","Palatino Linotype","Book Antiqua",Palatino,Georgia,"Times New Roman",serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--night);color:var(--cream);font-family:var(--serif);overflow:hidden;touch-action:none;overscroll-behavior:none;-webkit-tap-highlight-color:transparent}
+canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
+canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
+#ui{position:fixed;inset:0;z-index:10;pointer-events:none}
+#ui > *{pointer-events:none}
+#ui .btn,#ui #sound,#ui #err,#ui #invite input{pointer-events:auto}
+
+.btn{cursor:pointer;font-family:var(--serif);font-size:19px;letter-spacing:.06em;color:var(--gold-soft);background:rgba(7,10,28,.28);border:1px solid rgba(229,181,103,.5);padding:15px 38px;border-radius:999px;transition:border-color .4s,box-shadow .4s,background .4s,transform .4s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.btn:hover,.btn:focus-visible{border-color:var(--gold-soft);box-shadow:0 0 36px rgba(229,181,103,.28);outline:none;transform:translateY(-1px)}
+.btn:focus-visible{outline:1px solid var(--gold-soft);outline-offset:4px}
+
+#gate{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;background:radial-gradient(ellipse at 50% 58%,rgba(7,10,28,0) 0%,rgba(7,10,28,.55) 42%,rgba(7,10,28,.94) 100%);transition:opacity 1.8s ease}
+#gate .date{font-style:italic;font-size:17px;color:var(--cream-dim);margin-bottom:30px}
+#gate h1{font-weight:400;font-size:clamp(50px,9.5vw,118px);letter-spacing:.3em;text-indent:.3em;line-height:1;color:var(--gold-soft);text-shadow:0 0 44px rgba(229,181,103,.35)}
+#gate .sub{font-style:italic;font-size:clamp(19px,2.7vw,28px);color:var(--cream);opacity:.9;margin-top:16px}
+#gate .meta{font-size:15px;color:var(--cream-dim);margin-top:48px;margin-bottom:22px;line-height:1.7}
+#gate .tiny{font-size:13px;color:rgba(241,232,214,.4);margin-top:30px;font-style:italic}
+#gate.hidden{opacity:0}
+#gate.hidden *{pointer-events:none!important}
+
+#card{position:absolute;left:0;right:0;top:23%;text-align:center;opacity:0;transform:translateY(8px);transition:opacity 1.6s ease,transform 1.6s ease;padding:0 24px}
+#card.show{opacity:1;transform:none}
+#card .k{font-style:italic;font-size:17px;color:var(--gold);margin-bottom:12px;text-shadow:0 1px 18px rgba(0,0,0,.8)}
+#card h2{font-weight:400;font-size:clamp(34px,6vw,70px);letter-spacing:.1em;color:var(--cream);text-shadow:0 2px 12px rgba(0,0,0,.9),0 2px 40px rgba(0,0,0,.7);line-height:1.05}
+#card p{font-style:italic;font-size:clamp(16px,2vw,21px);color:var(--cream);opacity:.85;margin-top:14px;text-shadow:0 1px 10px rgba(0,0,0,.9),0 1px 30px rgba(0,0,0,.6)}
+
+#cd{position:absolute;top:30px;left:50%;transform:translateX(-50%);text-align:center;opacity:0;transition:opacity 1.4s ease;width:100%;padding:0 20px}
+#cd.show{opacity:1}
+#cd .k{font-style:italic;font-size:15px;color:var(--gold)}
+#cd .t{font-size:clamp(38px,6.5vw,62px);letter-spacing:.1em;color:var(--gold-soft);line-height:1.1;margin:4px 0 2px;font-variant-numeric:tabular-nums;text-shadow:0 0 30px rgba(229,181,103,.25)}
+#cd .n{font-size:14px;color:var(--cream-dim);font-style:italic}
+
+#witness,#next{position:absolute;bottom:15%;left:50%;transform:translateX(-50%);opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 1.2s;white-space:nowrap}
+#witness.show,#next.show{opacity:1;visibility:visible}
+#next{bottom:74px;font-size:17px;padding:12px 30px}
+#invite{position:absolute;left:50%;bottom:146px;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:10px;opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 1.2s;width:min(92vw,420px)}
+#invite.show{opacity:1;visibility:visible}
+#invite input{pointer-events:auto;width:min(100%,330px);font-family:var(--serif);font-size:19px;color:var(--gold-soft);background:rgba(7,10,28,.42);border:1px solid rgba(229,181,103,.45);border-radius:999px;padding:12px 22px;text-align:center;outline:none;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#invite input::placeholder{color:rgba(241,232,214,.45);font-style:italic}
+#invite input:focus{border-color:var(--gold-soft);box-shadow:0 0 30px rgba(229,181,103,.22)}
+#invite .row{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+#invite .btn{font-size:15px;padding:10px 22px}
+#invite .note{font-style:italic;font-size:13px;color:var(--cream-dim);text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.8)}
+#secret{position:absolute;top:26px;right:26px;font-style:italic;font-size:14px;color:var(--cream-dim);opacity:0;transition:opacity 1s}
+#secret.show{opacity:1}
+
+#mark{position:absolute;top:28px;left:32px;font-size:15px;letter-spacing:.34em;color:var(--gold);opacity:0;transition:opacity 1.6s}
+#mark.show{opacity:.8}
+#hint{position:absolute;bottom:28px;left:0;right:0;text-align:center;font-style:italic;font-size:15px;color:var(--cream-dim);opacity:0;transition:opacity 1.2s;padding:0 80px 0 24px}
+#hint.show{opacity:1}
+#sound{position:absolute;bottom:22px;right:26px;cursor:pointer;width:44px;height:44px;border-radius:50%;border:1px solid rgba(229,181,103,.4);display:flex;align-items:flex-end;justify-content:center;padding-bottom:13px;opacity:0;visibility:hidden;transition:opacity 1.6s,visibility 1.6s;background:rgba(7,10,28,.3)}
+#sound.show{opacity:.9;visibility:visible}
+#sound:focus-visible{outline:1px solid var(--gold-soft);outline-offset:3px}
+#sound .bar{width:2px;background:var(--gold-soft);margin:0 2px;border-radius:2px;animation:eq 1.15s ease-in-out infinite}
+#sound .bar:nth-child(2){animation-delay:-.38s}#sound .bar:nth-child(3){animation-delay:-.76s}
+#sound.muted .bar{animation:none;height:3px;opacity:.45}
+@keyframes eq{0%,100%{height:5px}50%{height:15px}}
+#dots{position:absolute;right:30px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:14px;opacity:0;transition:opacity 1.6s}
+#dots.show{opacity:1}
+#dots i{display:block;width:6px;height:6px;border-radius:50%;border:1px solid rgba(229,181,103,.55);transition:background .6s,box-shadow .6s}
+#dots i.on{background:var(--gold-soft);box-shadow:0 0 10px var(--gold-soft)}
+#dots i.lock{border-style:dotted;opacity:.45}
+#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:34px;font-size:17px;line-height:1.75;color:var(--cream-dim);font-style:italic}
+#err.show{display:flex}
+#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound{will-change:opacity}
+@media (max-width:640px){#mark{left:20px;top:22px}#dots{right:14px}#hint{padding:0 64px 0 16px;font-size:14px}#gate .meta{font-size:14px}#cd{top:64px}#card{top:20%}#next{bottom:86px}#invite{bottom:156px}#secret{top:46px;right:16px;font-size:13px}}
+@media (prefers-reduced-motion:reduce){#sound .bar{animation:none}}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdnjs.cloudflare.com/ajax/libs/three.js/0.185.1/three.module.min.js"}}</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<canvas id="fx"></canvas>
+<div id="ui">
+  <div id="gate">
+    <div class="date">Krishna Janmashtami, the fourth of September, 2026</div>
+    <h1>GOKULAM</h1>
+    <div class="sub">a midnight journey across the Yamuna</div>
+    <div class="meta">Headphones on. Full screen if you can.<br>The sound you will hear is composed live, note by note.</div>
+    <button class="btn" id="enter">Enter the night</button>
+    <div class="tiny">Six chapters. Take your time.</div>
+  </div>
+  <div id="mark">GOKULAM</div>
+  <div id="card"><div class="k"></div><h2></h2><p></p></div>
+  <div id="cd"><div class="k">The Nishita hour</div><div class="t">--:--:--</div><div class="n">until midnight. The sacred window opens at 11:57 pm.</div></div>
+  <button class="btn" id="witness">Witness the birth now</button>
+  <button class="btn" id="next">Continue</button>
+  <div id="invite"><input id="forname" maxlength="28" placeholder="Write a name on the card"><div class="row"><button class="btn" id="copylink">Copy the invitation link</button><button class="btn" id="sharebtn">Share</button></div><div class="note">The link opens this journey with their name written in gold.</div></div>
+  <div id="secret"></div>
+  <div id="hint"></div>
+  <div id="dots"></div>
+  <div id="sound" role="button" tabindex="0" aria-label="Toggle sound"><span class="bar"></span><span class="bar"></span><span class="bar"></span></div>
+  <div id="err"></div>
+</div>
+<script>
+window.__gokulamReady=false;
+setTimeout(function(){ if(!window.__gokulamReady){ var e=document.getElementById('err'); e.innerHTML='The night could not load.<br>This experience needs a modern browser with WebGL and an internet connection for the 3D library.<br>Try opening the file in Chrome, Edge, Safari or Firefox.'; e.classList.add('show'); } },15000);
+window.addEventListener('error',function(ev){ if(window.__gokulamReady) return; var e=document.getElementById('err'); e.innerHTML='The night could not load.<br>'+(ev.message||'Unknown error')+'<br>Try opening the file in Chrome with an internet connection.'; e.classList.add('show'); });
+</script>
+<script type="module">

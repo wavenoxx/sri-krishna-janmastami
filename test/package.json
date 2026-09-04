@@ -1,0 +1,6 @@
+{
+  "name": "gokulam-test",
+  "private": true,
+  "description": "Headless render tests for Gokulam (npm install, then python3 shot.py / flow2.py with Playwright)",
+  "dependencies": { "three": "0.185.1" }
+}

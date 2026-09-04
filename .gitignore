@@ -1,0 +1,5 @@
+node_modules/
+test/index.html
+test/*.png
+test/steps.json
+.DS_Store

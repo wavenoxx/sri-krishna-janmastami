@@ -1,0 +1,376 @@
+/* ───────────────────────── setup ───────────────────────── */
+const glCanvas = $('#gl');
+const renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false });
+renderer.setPixelRatio(Q.dpr);
+renderer.setSize(innerWidth, innerHeight, false);
+renderer.toneMapping = THREE.NoToneMapping;
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+renderer.setClearColor(0x000000, 1);
+const camera = new THREE.PerspectiveCamera(58, innerWidth / innerHeight, 0.1, 520);
+const post = new Post(renderer);
+const sound = new Sound();
+const cell = buildCell();
+const river = buildRiver();
+const gk = river.gk;
+
+const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret');
+for (let i = 0; i < 6; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
+const dotEls = dotsEl.querySelectorAll('i');
+function dots(i) { dotEls.forEach((d, k) => d.classList.toggle('on', k === i)); }
+let cardTimer = 0;
+function card(k, title, sub, dur = 5000) { cardEl.querySelector('.k').textContent = k; cardEl.querySelector('h2').textContent = title; cardEl.querySelector('p').textContent = sub; cardEl.classList.add('show'); clearTimeout(cardTimer); cardTimer = setTimeout(() => cardEl.classList.remove('show'), dur); }
+function setHint(t) { if (!t) { hintEl.classList.remove('show'); return; } hintEl.textContent = t; hintEl.classList.add('show'); }
+function setNext(label) { if (!label) { nextBtn.classList.remove('show'); return; } nextBtn.textContent = label; nextBtn.classList.add('show'); }
+if (!navigator.share) shareBtn.style.display = 'none';
+
+/* ───────────────────────── state ───────────────────────── */
+const S = {
+  mode: 'gate', time: 0, modeT: 0, t: 0, vel: 0, goal: null, push: 0,
+  yaw: 0, pitch: 0, yawT: 0, pitchT: 0, locked: false,
+  wind: new THREE.Vector2(0.25, 0), windT: new THREE.Vector2(0.25, 0),
+  flash: 0, flashT: 0, flashOn: false, flashPower: 1, nextFlash: 4,
+  storm: 1, dawn: 0, glowBoost: 0,
+  birthT: 0, snapped: false, conch: false, bornCard: false,
+  white: 0, exposure: 1, diyaI: 1, birthI: 0, doorA: 0, flare: 0,
+  chapter: 'cell', chapterT: 0, idle: 0, notes: 0, dawnK: 0, sunDir: new THREE.Vector3(0, -1, 0), sunI: 0, ambCol: new THREE.Color(0.11, 0.14, 0.24), fogCol: new THREE.Color(0x0a1029), fogDen: 0.009, basketK: 1,
+  secrets: { star: false, moon: false, lamp: false }, lampTaps: 0
+};
+const cam = { pos: new THREE.Vector3(), tgt: new THREE.Vector3(), tween: null };
+const GATE_TGT = new THREE.Vector3(1.4, 0.5, 1.5);
+const CELL_POS = new THREE.Vector3(0, 1.7, 3.4), CELL_TGT = new THREE.Vector3(0, 1.9, -6);
+const DOOR_POS = new THREE.Vector3(0, 1.8, -3.0), DOOR_TGT = new THREE.Vector3(0, 2.4, -7);
+cam.pos.set(2.2, 0.46, 2.2); cam.tgt.copy(GATE_TGT);
+function tweenCam(toPos, toTgt, dur) { cam.tween = { fp: cam.pos.clone(), ft: cam.tgt.clone(), tp: toPos.clone(), tt: toTgt.clone(), t: 0, dur }; }
+function updateCam(dt) {
+  if (cam.tween) { const w = cam.tween; w.t += dt; const k = easeInOut(w.t / w.dur); cam.pos.lerpVectors(w.fp, w.tp, k); cam.tgt.lerpVectors(w.ft, w.tt, k); if (w.t >= w.dur) cam.tween = null; }
+  camera.position.copy(cam.pos); camera.lookAt(cam.tgt);
+  const k = Math.min(1, dt * 3.2);
+  S.yaw += (S.yawT - S.yaw) * k; S.pitch += (S.pitchT - S.pitch) * k;
+  camera.rotateY(S.yaw); camera.rotateX(S.pitch);
+}
+
+/* ───────────────────────── lightning ───────────────────────── */
+function updateFlash(dt) {
+  if (S.time >= S.nextFlash && S.mode !== 'birth' && S.dawnK < 0.45) {
+    const calm = S.mode === 'river' && S.storm < 0.4;
+    const power = calm ? rand(0.2, 0.45) : rand(0.55, 1.3);
+    S.flashPower = power; S.flashT = 0; S.flashOn = true;
+    const delay = rand(0.25, 1.9);
+    if (sound.on && S.mode !== 'gate') sound.thunder(delay, power * (1.15 - delay * 0.35) * (S.mode === 'cell' ? 0.55 : 1));
+    S.nextFlash = S.time + (calm ? rand(11, 24) : rand(3.5, 9.5));
+  }
+  if (S.flashOn) {
+    S.flashT += dt; const ft = S.flashT;
+    let f = Math.exp(-ft * 11) + 0.6 * Math.exp(-Math.abs(ft - 0.14) * 32) + 0.35 * Math.exp(-Math.abs(ft - 0.33) * 22);
+    f *= S.flashPower; if (ft > 1.3) { S.flashOn = false; f = 0; } S.flash = f;
+  } else S.flash = 0;
+}
+
+/* ───────────────────────── countdown ───────────────────────── */
+let cdLast = '';
+function updateCountdown() {
+  const now = new Date(); const mid = new Date(now); mid.setHours(24, 0, 0, 0); const diff = mid - now;
+  const nishita = now.getHours() === 0 && now.getMinutes() < 44;
+  let txt;
+  if (nishita) { txt = '00:00:00'; cdN.textContent = 'The sacred window is open right now, until 12:43 am.'; }
+  else { const s = Math.floor(diff / 1000); txt = `${String(Math.floor(s / 3600)).padStart(2, '0')}:${String(Math.floor((s % 3600) / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`; }
+  if (txt !== cdLast) { cdLast = txt; cdT.textContent = txt; }
+  if (S.mode === 'cell' && !nishita && diff < 1200 && S.modeT > 6) startBirth();
+}
+
+/* ───────────────────────── chapter one and the birth ───────────────────────── */
+enterBtn.addEventListener('click', () => {
+  if (S.mode !== 'gate') return;
+  try { sound.init(); } catch (e) { console.warn('audio unavailable', e); }
+  if (sound.on) { sound.tanpuraOn = true; sound.set('crickets', 0.05, 4); sound.set('rain', 0.055, 4); sound.set('wind', 0.03, 4); sound.set('tanpura', 0.24, 5); setTimeout(() => { sound.heart = true; }, 3800); }
+  if (isMobile && document.documentElement.requestFullscreen) { try { document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {} }
+  gate.classList.add('hidden');
+  S.mode = 'cell'; S.modeT = 0;
+  tweenCam(CELL_POS, CELL_TGT, 5.2);
+  setTimeout(() => card('Chapter one', 'Nishita', 'Mathura. A prison cell. The eighth night of the dark fortnight.', 6500), 1800);
+  setTimeout(() => { markEl.classList.add('show'); soundBtn.classList.add('show'); dotsEl.classList.add('show'); dots(0); }, 4300);
+  setTimeout(() => { if (S.mode !== 'cell') return; cdEl.classList.add('show'); setHint(isMobile ? 'Drag to look around. Wait for midnight, or witness now.' : 'Move the mouse to look around. Wait for midnight, or witness the birth now.'); }, 9000);
+  setTimeout(() => { if (S.mode === 'cell') witnessBtn.classList.add('show'); }, 10500);
+});
+witnessBtn.addEventListener('click', startBirth);
+function startBirth() {
+  if (S.mode !== 'cell') return;
+  S.mode = 'birth'; S.modeT = 0; S.birthT = 0; S.snapped = false; S.conch = false; S.bornCard = false;
+  cdEl.classList.remove('show'); witnessBtn.classList.remove('show'); setHint('');
+  S.flashPower = 1.7; S.flashT = 0; S.flashOn = true;
+  sound.heart = false;
+  if (sound.on) { const n = sound.ctx.currentTime; sound.thunder(0.15, 1.3); sound.drone(); sound.bell(n + 0.3, 660, 0.5); sound.bell(n + 1.1, 880, 0.4); sound.bell(n + 2.4, 1320, 0.3); sound.setSmooth('rain', 0.02); sound.setSmooth('crickets', 0); }
+}
+function updateBirth(dt) {
+  const bt = (S.birthT += dt);
+  S.birthI = smooth(bt / 4.5) + smooth((bt - 8) / 3) * 0.3;
+  S.diyaI = 1 + smooth(bt / 3) * 1.4;
+  cell.sphere.scale.setScalar(0.05 + easeOut(bt / 5) * 1.25);
+  cell.sphere.position.y = 1.5 + easeOut(bt / 6) * 0.7;
+  post.rayStrength = smooth((bt - 0.8) / 3) * 0.7; post.lightPos.copy(cell.sphere.position);
+  if (bt > 3 && !S.snapped) { S.snapped = true; cell.snap(); if (sound.on) sound.chains(); }
+  if (bt > 4.5 && !S.bornCard) { S.bornCard = true; card('The Nishita hour', 'He is born.', 'The chains fall. The doors open. The river is waiting.', 6000); }
+  if (bt > 5.5 && !S.conch) { S.conch = true; if (sound.on) sound.conch(sound.ctx.currentTime); }
+  S.doorA = easeInOut((bt - 5.5) / 3.2) * 1.9;
+  const k = smooth((bt - 4.5) / 6); cam.pos.lerpVectors(CELL_POS, DOOR_POS, k); cam.tgt.lerpVectors(CELL_TGT, DOOR_TGT, k);
+  S.exposure = 1 + smooth((bt - 8.5) / 3) * 0.3;
+  S.white = smooth((bt - 9.6) / 1.8);
+  if (bt >= 11.5) startRiver();
+}
+
+/* ───────────────────────── the road: chapters two to six ───────────────────────── */
+const RAIL_LEN = river.rail.getLength();
+const M = m => m / RAIL_LEN;                      // metres → rail units
+function tAtZ(z) { for (let i = 0; i <= 3000; i++) { const u = i / 3000; if (river.rail.getPointAt(u).z <= z) return u; } return 1; }
+const STATIONS = [{ name: 'flute', t: tAtZ(-166.5), z: -166.5 }, { name: 'lane', t: tAtZ(-193), z: -193 }, { name: 'card', t: tAtZ(-216.4), z: -216.4 }];
+const MILESTONES = [tAtZ(-98), tAtZ(-124), STATIONS[0].t, STATIONS[1].t, STATIONS[2].t, 1];
+const NEXT_LABEL = { river: 'Cross the river', shore: 'Walk on', grove: 'Walk on', flute: 'Continue the journey', lane: 'Continue the journey', card: 'Light the lamps' };
+const MAXV = M(5.5);
+const WALK = () => M(S.chapter === 'river' ? 3.0 : 2.4), DRIFT = () => M(S.chapter === 'river' ? 0.7 : 0.55);
+function stationHere() { for (const st of STATIONS) if (Math.abs(S.t - st.t) < M(1.5)) return st; return null; }
+function walkTo(goal) { S.goal = clamp(goal, 0, 1); S.push = 0; }
+function nextMilestone() { for (const m of MILESTONES) if (m > S.t + M(2)) return m; return 1; }
+function advance(mps) {
+  if (S.mode !== 'river') return;
+  if (S.goal !== null && mps > 0) { S.vel = Math.min(MAXV, S.vel + M(mps)); return; }
+  S.goal = null;
+  const st = stationHere();
+  if (st && mps > 0 && !st.released) { S.push += mps; if (S.push > 6) { st.released = true; S.vel = WALK() * 0.6; } return; }
+  S.vel = clamp(S.vel + M(mps), -MAXV, MAXV);
+}
+function updateWalk(dt) {
+  const st = stationHere();
+  if (S.goal !== null) {
+    const dist = S.goal - S.t, dir = Math.sign(dist);
+    const desired = dir * Math.min(WALK(), Math.sqrt(2 * M(0.9) * Math.abs(dist)));
+    S.vel += (desired - S.vel) * Math.min(1, dt * 3);
+    if (Math.abs(dist) < M(0.15)) { S.t = S.goal; S.vel = 0; S.goal = null; }
+  } else {
+    const base = (!st && S.chapter !== 'end' && S.t < 0.999) ? DRIFT() : 0;
+    S.vel = base + (S.vel - base) * Math.exp(-dt * 2.4);
+    if (st && !st.released && S.vel > 0 && S.t + S.vel * dt > st.t) { S.t = st.t; S.vel = 0; }
+  }
+  if (st && !st.released && S.goal !== null && S.goal > st.t + M(1)) S.goal = st.t;
+  S.t = clamp(S.t + S.vel * dt, 0, 1);
+}
+function startRiver() {
+  S.mode = 'river'; S.chapter = 'river'; S.chapterT = 0; S.modeT = 0; S.t = 0; S.vel = 0; S.goal = null; S.white = 1; S.exposure = 1; post.rayStrength = 0; S.yawT = 0; S.pitchT = 0; S.nextFlash = S.time + 2.5; cam.tween = null;
+  if (sound.on) { sound.setSmooth('rain', 0.3); sound.setSmooth('wind', 0.12); sound.setSmooth('water', 0.22); sound.setSmooth('crickets', 0); sound.setSmooth('tanpura', 0.1); }
+  setTimeout(() => card('Chapter two', 'Yamuna', 'The storm bows. The river rises to touch His feet.', 6500), 2800);
+  setTimeout(() => { if (S.chapter === 'river') { setHint(isMobile ? 'Swipe up to move faster. Drag to look. Your finger steers the wind.' : 'Scroll to move faster. The mouse looks around and steers the wind.'); setNext(NEXT_LABEL.river); } }, 6000);
+  dots(1);
+}
+const CHAPTER = {
+  shore: () => { card('Gokulam', 'The far bank', 'The rain lets go. Somewhere ahead, a village is still asleep.', 7000); setHint(''); setNext(NEXT_LABEL.shore); if (sound.on) { sound.setSmooth('crickets', 0.05); sound.motif(); } },
+  grove: () => { card('Chapter three', 'Gokulam wakes', 'Kadamba trees, fireflies, the first birds of the morning.', 7000); dots(2); setHint(isMobile ? 'Swipe up to walk. Look up for the feathers.' : 'Scroll to walk. Look up for the feathers.'); setNext(NEXT_LABEL.grove); if (sound.on) { sound.birdsOn = true; sound.setSmooth('tanpura', 0.2); } },
+  flute: () => { card('Chapter four', 'Venu Gaanam', 'His flute is waiting for your hand.', 7000); dots(3); setHint(isMobile ? 'Drag your finger across the flute, or tap a hole.' : 'Glide the mouse across the flute, or tap a hole. Keys 1 to 8 play too.'); setNext(''); S.notes = 0; S.idle = -9; gk.setGuides(1, -1); if (sound.on) sound.setSmooth('tanpura', 0.12); setTimeout(() => playPhrase(PHRASES[0]), 2400); },
+  lane: () => { card('Chapter five', 'Utlotsavam', 'Seven pots of butter hang over the lane. He would not leave one whole.', 7000); dots(4); setHint(isMobile ? 'Tap a pot to break it.' : 'Click a pot to break it.'); setNext(''); gk.setGuides(0, -1); if (sound.on) { sound.dholOn = true; sound.setSmooth('tanpura', 0.15); } },
+  card: () => { card('Chapter six', 'Aahvaanam', 'An invitation, written in gold, for whoever you carry in your heart.', 8000); dots(5); setHint(isMobile ? 'Tilt your phone to turn the card.' : 'Move the mouse to turn the card.'); setNext(''); setTimeout(() => { if (S.chapter === 'card') { inviteEl.classList.add('show'); setNext(NEXT_LABEL.card); } }, 5000); if (sound.on) { sound.dholOn = false; sound.setSmooth('tanpura', 0.26); sound.birdsOn = true; } if (isMobile) askGyro(); },
+  end: () => { setNext(''); },
+};
+function setChapter(c) { if (S.chapter === c) return; S.chapter = c; S.chapterT = 0; (CHAPTER[c] || (() => {}))(); }
+function updateRiver(dt) {
+  S.white = 1 - smooth((S.modeT - 0.4) / 3.2);
+  S.chapterT += dt;
+  updateWalk(dt);
+  const camP = river.rail.getPointAt(clamp(S.t, 0, 1)); const camZ = camP.z;
+  const ahead = river.rail.getPointAt(clamp(S.t + M(6), 0, 1));
+  S.storm = 1 - smooth((-camZ - 52) / 40) * 0.96;
+  S.dawnK = smooth((-camZ - 82) / 62);
+  S.dawn = 0.42 * smooth((S.dawnK - 0.05) / 0.4) * (1 - 0.6 * smooth((S.dawnK - 0.7) / 0.3));
+  S.basketK = 1 - smooth((-camZ - 86) / 10);
+  S.glowBoost = 0;
+  const bP = river.rail.getPointAt(clamp(S.t + M(6), 0, 1)); bP.y = 0.62 + Math.sin(S.time * 1.6) * 0.1;
+  river.setBasket(bP);
+  cam.pos.copy(camP);
+  const st = stationHere();
+  S.locked = !!st && !st.released && (S.chapter === 'flute' || S.chapter === 'lane' || S.chapter === 'card');
+  if (S.chapter === 'flute') cam.tgt.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
+  else if (S.chapter === 'lane') cam.tgt.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
+  else if (S.chapter === 'card' || S.chapter === 'end') cam.tgt.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
+  else if (S.basketK > 0.5) cam.tgt.set(bP.x, bP.y + 0.9, bP.z - 9);
+  else cam.tgt.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
+  if (S.chapter !== 'end') { if (camZ > -88) setChapter('river'); else if (camZ > -104) setChapter('shore'); else if (camZ > -161) setChapter('grove'); else if (camZ > -184) setChapter('flute'); else if (camZ > -208) setChapter('lane'); else setChapter('card'); }
+  else if (camZ > -208) { S.chapter = 'lane'; setChapter(camZ > -88 ? 'river' : camZ > -104 ? 'shore' : camZ > -161 ? 'grove' : camZ > -184 ? 'flute' : 'lane'); }
+  if ((S.chapter === 'river' || S.chapter === 'shore' || S.chapter === 'grove') && S.goal === null && S.chapterT > 8 && !nextBtn.classList.contains('show')) setNext(NEXT_LABEL[S.chapter]);
+  if (S.chapter === 'flute') { S.idle += dt; if (S.idle > 11) { S.idle = -8; playPhrase(PHRASES[Math.floor(Math.random() * PHRASES.length)]); } if (!nextBtn.classList.contains('show') && (S.notes >= 4 || S.chapterT > 14)) setNext(NEXT_LABEL.flute); }
+  if (S.chapter === 'lane') { if (gk.potsLeft() === 0) finale(); else if (!nextBtn.classList.contains('show') && (gk.potsLeft() < 7 || S.chapterT > 18)) setNext(NEXT_LABEL.lane); }
+  post.lightPos.copy(river.moonWorld()); post.rayStrength = 0.14 * (0.5 + 0.5 * S.storm) * (1 - S.dawnK);
+  if (sound.on) {
+    const inland = smooth((-camZ - 96) / 30);
+    sound.setSmooth('rain', 0.03 + 0.3 * S.storm); sound.setSmooth('wind', 0.03 + 0.12 * S.storm * (0.5 + Math.abs(S.wind.x)));
+    sound.setSmooth('water', 0.22 * (1 - inland)); sound.setSmooth('crickets', 0.05 * (1 - S.dawnK) * smooth((-camZ - 60) / 30));
+    if (S.dawnK > 0.3) sound.birdsOn = true;
+  }
+}
+const PHRASES = [[0, 1, 2, 3, 4, 3, 2, 1, 0], [2, 3, 4, 5, 4, 3, 2, 1, 2], [4, 5, 6, 7, 6, 5, 4, 3, 4], [0, 2, 3, 4, 7, 4, 3, 2, 0]];
+function playPhrase(ph) { ph.forEach((n, i) => setTimeout(() => { if (S.chapter === 'flute') { gk.playNote(n, 0.4); gk.setGuides(1, n); setTimeout(() => { if (hotHole < 0) gk.setGuides(1, -1); }, 300); } }, i * 470)); }
+let finaleDone = false;
+function finale() {
+  if (finaleDone) return; finaleDone = true;
+  if (sound.on) { const n = sound.ctx.currentTime; [660, 880, 1100, 1320, 1760].forEach((f, i) => sound.bell(n + 0.15 * i, f, 0.4)); for (let i = 0; i < 8; i++) sound.dholHit(n + 0.12 * i, i % 3 === 2 ? 'tin' : 'dha', 0.6); }
+  card('Utlotsavam', 'Seven pots, seven laughs.', 'Every mother in Gokulam has hidden her butter. None of it is safe.', 5000);
+  setHint(''); setNext(NEXT_LABEL.lane); for (const st of STATIONS) if (st.name === 'lane') st.released = true;
+  setTimeout(() => { if (S.chapter === 'lane') walkTo(STATIONS[2].t); }, 5500);
+}
+function lightLamps() {
+  if (gk.finaleOn()) return; gk.lightLamps(); setNext(''); inviteEl.classList.remove('show');
+  if (sound.on) { const n = sound.ctx.currentTime; sound.conch(n); [0, 1, 2, 3, 4, 7].forEach((k, i) => sound.bell(n + 1.6 + i * 0.22, 293.66 * gk.NOTES[k] * 2, 0.35)); setTimeout(() => sound.motif(), 2600); sound.setSmooth('tanpura', 0.3); }
+  setTimeout(() => card('Gokulam', 'A thousand lamps', 'One for every year He has been loved. Jai Sri Krishna.', 9000), 2500);
+  setTimeout(() => { setChapter('end'); const found = Object.values(S.secrets).filter(Boolean).length; setHint(isMobile ? `Drag to look around. Swipe down to walk the road again. ${found} of 3 secrets found.` : `Move to look around. Scroll up to walk the road again. ${found} of 3 secrets found.`); inviteEl.classList.add('show'); }, 12000);
+}
+nextBtn.addEventListener('click', () => {
+  if (S.mode !== 'river') return;
+  if (S.chapter === 'card') { lightLamps(); return; }
+  const st = stationHere(); if (st) st.released = true;
+  walkTo(nextMilestone()); setNext('');
+});
+
+/* ───────────────────────── the invitation: name, link, share, tilt ───────────────────────── */
+const params = new URLSearchParams(location.search);
+const forName = (params.get('for') || '').trim().slice(0, 28);
+if (forName) { nameInput.value = forName; gk.setCardName(forName); }
+nameInput.addEventListener('input', () => gk.setCardName(nameInput.value.trim().slice(0, 28)));
+function inviteLink() { const u = new URL(location.href); u.search = ''; const n = nameInput.value.trim(); if (n) u.searchParams.set('for', n); return u.toString(); }
+copyBtn.addEventListener('click', async () => { const link = inviteLink(); try { await navigator.clipboard.writeText(link); copyBtn.textContent = 'Link copied'; } catch (e) { prompt('Copy this link', link); } setTimeout(() => { copyBtn.textContent = 'Copy the invitation link'; }, 2500); });
+shareBtn.addEventListener('click', async () => { try { await navigator.share({ title: 'Gokulam, a midnight journey', text: 'You are invited to the night He was born.', url: inviteLink() }); } catch (e) {} });
+let gyroOn = false;
+function askGyro() {
+  const DOE = window.DeviceOrientationEvent;
+  if (!DOE) return;
+  const start = () => { if (gyroOn) return; gyroOn = true; addEventListener('deviceorientation', e => { if (e.gamma == null) return; gk.setTilt(clamp(e.gamma / 30, -1, 1), clamp((e.beta - 45) / 35, -1, 1)); }); };
+  if (typeof DOE.requestPermission === 'function') { const once = () => { DOE.requestPermission().then(r => { if (r === 'granted') start(); }).catch(() => {}); removeEventListener('pointerdown', once); }; addEventListener('pointerdown', once); }
+  else start();
+}
+
+/* ───────────────────────── secrets ───────────────────────── */
+function foundSecret(key, title, text) {
+  if (S.secrets[key]) return; S.secrets[key] = true;
+  card('A secret', title, text, 6500);
+  if (sound.on) { const n = sound.ctx.currentTime; sound.bell(n, 1760, 0.3); sound.bell(n + 0.18, 2200, 0.25); sound.bell(n + 0.36, 2640, 0.2); }
+  const found = Object.values(S.secrets).filter(Boolean).length;
+  secretEl.textContent = `${found} of 3 secrets`; secretEl.classList.add('show'); setTimeout(() => secretEl.classList.remove('show'), 5000);
+}
+function tapWorld(ndc) {
+  if (S.mode === 'cell' || S.mode === 'gate') {
+    if (gk.rayHit(ndc, camera, [cell.flame])) { S.flare = 1.6; S.lampTaps++; if (sound.on) sound.bell(sound.ctx.currentTime, 2200, 0.15); if (S.lampTaps >= 3) foundSecret('lamp', 'The lamp', 'It has waited five thousand years for this night, and for you.'); }
+    return;
+  }
+  if (S.mode !== 'river') return;
+  if (S.chapter === 'river' || S.chapter === 'shore') {
+    if (gk.rayHit(ndc, camera, [river.rohini])) foundSecret('star', 'Rohini', 'The star under which He was born. It has been pulsing for you all night.');
+    else if (gk.rayHit(ndc, camera, [river.moon])) { foundSecret('moon', 'The Ashtami moon', 'Half lit, just risen. It rose with Him.'); if (sound.on) sound.conch(sound.ctx.currentTime + 0.5); }
+  }
+}
+
+/* ───────────────────────── input ───────────────────────── */
+const P = { down: false, sx: 0, sy: 0, lx: 0, ly: 0, mode: null };
+let hotHole = -1, lastHole = -1;
+const ndcV = new THREE.Vector3();
+function fluteAt(nx, ny) {
+  let best = -1, bd = 1e9;
+  for (let i = 0; i < 8; i++) { const p = gk.holeNDC(i, camera, ndcV); if (p.z > 1) continue; const dx = (p.x - nx) * (innerWidth / innerHeight), dy = p.y - ny; const d = dx * dx + dy * dy * 0.35; if (d < bd) { bd = d; best = i; } }
+  return bd < 0.5 ? best : -1;
+}
+function flutePointer(nx, ny, playing) {
+  if (S.chapter !== 'flute') { hotHole = -1; return; }
+  const h = fluteAt(nx, ny); hotHole = h; gk.setGuides(1, h);
+  if (playing && h >= 0 && h !== lastHole) { lastHole = h; gk.playNote(h); S.notes++; S.idle = 0; }
+  if (h < 0) lastHole = -1;
+}
+function tapAt(cx, cy) {
+  const ndc = new THREE.Vector2((cx / innerWidth) * 2 - 1, 1 - (cy / innerHeight) * 2);
+  if (S.chapter === 'lane' && S.mode === 'river') {
+    if (gk.tapPot(ndc, camera)) { const left = gk.potsLeft(); setHint(left === 0 ? '' : left === 1 ? 'One pot left.' : `${['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six'][left]} pots remain.`); }
+    return;
+  }
+  if (S.chapter === 'flute' && S.mode === 'river') { const h = fluteAt(ndc.x, ndc.y); if (h >= 0) { gk.playNote(h); S.notes++; S.idle = 0; } return; }
+  tapWorld(ndc);
+}
+addEventListener('pointerdown', e => { P.down = true; P.sx = P.lx = e.clientX; P.sy = P.ly = e.clientY; P.mode = null; lastHole = -1; if (e.pointerType !== 'touch' && S.chapter === 'flute') { const nx = (e.clientX / innerWidth) * 2 - 1, ny = 1 - (e.clientY / innerHeight) * 2; flutePointer(nx, ny, true); } });
+addEventListener('pointerup', e => { if (P.down && Math.abs(e.clientX - P.sx) < 10 && Math.abs(e.clientY - P.sy) < 10 && !(e.pointerType !== 'touch' && S.chapter === 'flute')) tapAt(e.clientX, e.clientY); P.down = false; P.mode = null; lastHole = -1; });
+addEventListener('pointercancel', () => { P.down = false; P.mode = null; lastHole = -1; });
+addEventListener('pointermove', e => {
+  const nx = (e.clientX / innerWidth) * 2 - 1, ny = (e.clientY / innerHeight) * 2 - 1;
+  if (!reducedMotion) spawnTrail(e.clientX, e.clientY);
+  S.windT.set(0.15 + nx * 0.45, ny * 0.15);
+  if (S.chapter === 'card' || S.chapter === 'end') gk.setTilt(nx, -ny);
+  if (S.chapter === 'lane' && S.mode === 'river') gk.hoverPot(new THREE.Vector2(nx, -ny), camera);
+  if (e.pointerType === 'touch') {
+    if (!P.down) return;
+    const dx = e.clientX - P.lx, dy = e.clientY - P.ly; P.lx = e.clientX; P.ly = e.clientY;
+    if (S.chapter === 'flute' && S.locked) { flutePointer(nx, -ny, true); return; }
+    if (!P.mode) { const ax = Math.abs(e.clientX - P.sx), ay = Math.abs(e.clientY - P.sy); if (ax > 10 || ay > 10) P.mode = (ax > ay || S.mode === 'cell' || S.locked) ? 'look' : 'scroll'; }
+    if (P.mode === 'look') { if (S.locked) return; S.yawT = clamp(S.yawT + dx * 0.0035, -1.1, 1.1); S.pitchT = clamp(S.pitchT + dy * 0.0022, -0.5, 0.5); }
+    else if (P.mode === 'scroll') advance(-dy * 0.07);
+  } else {
+    if (S.locked) { S.yawT = -nx * 0.05; S.pitchT = -ny * 0.03; } else { S.yawT = -nx * 0.36; S.pitchT = -ny * 0.18; }
+    flutePointer(nx, -ny, true);
+  }
+});
+addEventListener('wheel', e => { e.preventDefault(); advance(clamp(e.deltaY, -160, 160) * 0.03); }, { passive: false });
+addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+addEventListener('keydown', e => {
+  if (e.target === nameInput) return;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ' || e.key === 'PageDown') { if (S.mode === 'gate') enterBtn.click(); else advance(3.2); e.preventDefault(); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'PageUp') { advance(-3.2); e.preventDefault(); }
+  else if (e.key === 'm' || e.key === 'M') toggleSound();
+  else if (e.key >= '1' && e.key <= '8' && S.chapter === 'flute') { gk.playNote(+e.key - 1); S.notes++; S.idle = 0; }
+  else if (e.key === 'Enter') { if (S.mode === 'gate') enterBtn.click(); else if (S.mode === 'cell') startBirth(); else if (nextBtn.classList.contains('show')) nextBtn.click(); }
+});
+function toggleSound() { if (!sound.on) return; sound.setMuted(!sound.muted); soundBtn.classList.toggle('muted', sound.muted); }
+soundBtn.addEventListener('click', toggleSound);
+soundBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleSound(); } });
+document.addEventListener('visibilitychange', () => { if (!sound.on) return; if (document.hidden) sound.setMuted(true); else if (!soundBtn.classList.contains('muted')) sound.setMuted(false); });
+
+/* ───────────────────────── peacock cursor trail ───────────────────────── */
+const fx = $('#fx'), fctx = fx.getContext('2d'); let fxScale = 1; const parts = [];
+function spawnTrail(x, y) { if (parts.length > 220) return; for (let i = 0; i < 2; i++) parts.push({ x, y, vx: rand(-0.5, 0.5), vy: rand(-0.7, 0.2), life: 1, r: rand(1.4, 3.2), c: Math.random() < 0.6 ? '47,181,159' : '229,181,103' }); }
+function drawTrail(dt) {
+  fctx.clearRect(0, 0, fx.width, fx.height); if (!parts.length) return;
+  fctx.globalCompositeOperation = 'lighter';
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]; p.life -= dt * 1.3; if (p.life <= 0) { parts.splice(i, 1); continue; }
+    p.x += p.vx; p.y += p.vy; p.vy -= 0.015;
+    const a = p.life * p.life * 0.85, r = p.r * (0.5 + p.life) * fxScale * 3, X = p.x * fxScale, Y = p.y * fxScale;
+    const g = fctx.createRadialGradient(X, Y, 0, X, Y, r); g.addColorStop(0, `rgba(${p.c},${a})`); g.addColorStop(1, `rgba(${p.c},0)`);
+    fctx.fillStyle = g; fctx.beginPath(); fctx.arc(X, Y, r, 0, Math.PI * 2); fctx.fill();
+  }
+  fctx.globalCompositeOperation = 'source-over';
+}
+
+/* ───────────────────────── resize + loop ───────────────────────── */
+function resize() {
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false); camera.aspect = w / h; camera.fov = w < h ? 72 : 58; camera.updateProjectionMatrix();
+  const size = renderer.getDrawingBufferSize(new THREE.Vector2()); post.setSize(size.x, size.y);
+  fxScale = Math.min(Q.dpr, 2); fx.width = w * fxScale; fx.height = h * fxScale;
+}
+addEventListener('resize', resize); resize();
+
+function update(dt) {
+  S.time += dt; S.modeT += dt;
+  S.wind.lerp(S.windT, Math.min(1, dt * 1.5));
+  S.flare *= Math.exp(-dt * 2.2);
+  updateFlash(dt);
+  if (S.mode === 'gate') { const a = S.time * 0.13; cam.pos.set(1.4 + Math.cos(a) * 1.15, 0.62 + Math.sin(S.time * 0.4) * 0.05, 1.5 + Math.sin(a) * 1.15); cam.tgt.copy(GATE_TGT); S.diyaI = 1 + S.flare; }
+  else if (S.mode === 'cell') { updateCountdown(); S.diyaI = 1 + S.flare; }
+  else if (S.mode === 'birth') updateBirth(dt);
+  else updateRiver(dt);
+  updateCam(dt);
+  sound.update();
+  if (S.mode === 'gate' || S.mode === 'cell' || S.mode === 'birth') cell.update(dt, S, camera);
+  else river.update(dt, S, camera);
+}
+let last = performance.now();
+function frame(now) {
+  requestAnimationFrame(frame);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  update(dt);
+  post.comp.uniforms.uWhite.value = S.white; post.comp.uniforms.uExposure.value = S.exposure;
+  post.render((S.mode === 'gate' || S.mode === 'cell' || S.mode === 'birth') ? cell.scene : river.scene, camera, S.time);
+  drawTrail(dt);
+}
+window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
+window.__gokulamReady = true;
+requestAnimationFrame(frame);

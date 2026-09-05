@@ -21,7 +21,7 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
 #ui{position:fixed;inset:0;z-index:10;pointer-events:none}
 #ui > *{pointer-events:none}
-#ui .btn,#ui #sound,#ui #err,#ui #invite input{pointer-events:auto}
+#ui .btn,#ui #sound,#ui #autoCruise,#ui #err,#ui #invite input{pointer-events:auto}
 
 .btn{cursor:pointer;font-family:var(--serif);font-size:19px;letter-spacing:.06em;color:var(--gold-soft);background:rgba(7,10,28,.28);border:1px solid rgba(229,181,103,.5);padding:15px 38px;border-radius:999px;transition:border-color .4s,box-shadow .4s,background .4s,transform .4s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .btn:hover,.btn:focus-visible{border-color:var(--gold-soft);box-shadow:0 0 36px rgba(229,181,103,.28);outline:none;transform:translateY(-1px)}
@@ -80,7 +80,16 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 #dots i.lock{border-style:dotted;opacity:.45}
 #err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:34px;font-size:17px;line-height:1.75;color:var(--cream-dim);font-style:italic}
 #err.show{display:flex}
-#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound{will-change:opacity}
+#autoCruise{position:absolute;top:24px;right:26px;cursor:pointer;display:inline-flex;align-items:center;gap:7px;padding:7px 16px;border-radius:999px;font-family:var(--serif);font-size:14px;letter-spacing:.08em;color:var(--cream);background:linear-gradient(135deg,rgba(255,255,255,.14) 0%,rgba(255,255,255,.03) 100%);border:1px solid rgba(255,255,255,.24);box-shadow:inset 0 1px 1px 0 rgba(255,255,255,.35),0 8px 24px -4px rgba(0,0,0,.45);backdrop-filter:blur(20px) saturate(190%);-webkit-backdrop-filter:blur(20px) saturate(190%);opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 1.2s,border-color .4s,box-shadow .4s,background .4s,transform .25s;user-select:none;-webkit-user-select:none}
+#autoCruise:hover{border-color:rgba(229,181,103,.5);box-shadow:inset 0 1px 1px 0 rgba(255,255,255,.5),0 0 18px rgba(229,181,103,.25);transform:translateY(-1px)}
+#autoCruise.show{opacity:.92;visibility:visible}
+#autoCruise.active{border-color:var(--gold-soft);color:var(--gold-soft);background:linear-gradient(135deg,rgba(229,181,103,.28) 0%,rgba(7,10,28,.45) 100%);box-shadow:inset 0 1px 1px 0 rgba(255,255,255,.6),0 0 24px rgba(229,181,103,.4)}
+#autoCruise .dot{width:6px;height:6px;border-radius:50%;background:rgba(241,232,214,.6);transition:background .4s,box-shadow .4s}
+#autoCruise.active .dot{background:var(--gold-soft);box-shadow:0 0 8px var(--gold-soft);animation:cruisePulse 2s infinite ease-in-out}
+@keyframes cruisePulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.35);opacity:1}}
+#autoCruise .ico{font-size:10px;line-height:1;margin-left:2px}
+#autoCruise:focus-visible{outline:1px solid var(--gold-soft);outline-offset:3px}
+#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound,#autoCruise{will-change:opacity}
 
 @media (max-width:760px){
   #mark{left:16px;top:18px;font-size:13px}
@@ -91,7 +100,8 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   #card{top:20%}
   #next{bottom:86px}
   #invite{bottom:156px}
-  #secret{top:46px;right:16px;font-size:13px}
+  #secret{top:58px;right:16px;font-size:13px}
+  #autoCruise{top:16px;right:16px;padding:6px 13px;font-size:13px}
 }
 @media (prefers-reduced-motion:reduce){#sound .bar{animation:none}}
 </style>
@@ -110,6 +120,7 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
     <div class="tiny">Seven chapters. An open-world pilgrimage.</div>
   </div>
   <div id="mark">GOKULAM</div>
+  <button id="autoCruise" aria-label="Toggle Auto-Journey"><span class="dot"></span><span class="txt">Auto</span><span class="ico">▶</span></button>
   <div id="card"><div class="k"></div><h2></h2><p></p></div>
   <div id="cd"><div class="k">The Nishita hour</div><div class="t">--:--:--</div><div class="n">until midnight. The sacred window opens at 11:57 pm.</div></div>
   <button class="btn" id="witness">Witness the birth now</button>

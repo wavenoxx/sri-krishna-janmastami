@@ -153,32 +153,168 @@ function buildRiver() {
   const sunLight = new THREE.DirectionalLight(0xffb070, 0); scene.add(sunLight);
   const flashLight = new THREE.DirectionalLight(0xd0d8ff, 0); flashLight.position.set(20, 60, -10); scene.add(flashLight);
 
+  // --- 1. Woven Wicker / Cane Basket (Traditional Shurpa / Tokri) ---
   const vessel = new THREE.Group(); scene.add(vessel);
+  const caneMat = new THREE.MeshStandardMaterial({ color: 0x9e6a38, roughness: 0.82, metalness: 0.04 });
+  const caneDarkMat = new THREE.MeshStandardMaterial({ color: 0x6e451e, roughness: 0.88 });
   const basket = new THREE.Mesh(
-    new THREE.LatheGeometry([new THREE.Vector2(0.001, 0), new THREE.Vector2(0.55, 0), new THREE.Vector2(0.72, 0.36), new THREE.Vector2(0.7, 0.5), new THREE.Vector2(0.62, 0.5), new THREE.Vector2(0.58, 0.37), new THREE.Vector2(0.45, 0.09), new THREE.Vector2(0.001, 0.09)], 30),
-    new THREE.MeshStandardMaterial({ color: 0x8c5a2e, roughness: 0.9, side: THREE.DoubleSide }));
+    new THREE.LatheGeometry([
+      new THREE.Vector2(0.001, 0),
+      new THREE.Vector2(0.56, 0.02),
+      new THREE.Vector2(0.74, 0.28),
+      new THREE.Vector2(0.75, 0.44),
+      new THREE.Vector2(0.68, 0.45),
+      new THREE.Vector2(0.64, 0.32),
+      new THREE.Vector2(0.48, 0.08),
+      new THREE.Vector2(0.001, 0.08)
+    ], 32),
+    caneMat
+  );
   vessel.add(basket);
-  const cloth = new THREE.Mesh(new THREE.SphereGeometry(0.5, 20, 12), new THREE.MeshStandardMaterial({ color: 0xf1e2c4, roughness: 0.8 })); cloth.scale.set(1, 0.24, 1); cloth.position.y = 0.16; vessel.add(cloth);
-  const glowBall = new THREE.Mesh(new THREE.SphereGeometry(0.26, 24, 18), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 2.1, 1.1) })); glowBall.position.y = 0.42; vessel.add(glowBall);
-  const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xffc46a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.85 })); glowSprite.position.y = 0.5; glowSprite.scale.set(4.5, 4.5, 1); vessel.add(glowSprite);
-  const basketLight = new THREE.PointLight(0xffb45a, 30, 14, 2); basketLight.position.y = 0.4; vessel.add(basketLight);
 
+  // Braided rim around top
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.73, 0.045, 12, 48), caneDarkMat);
+  rim.rotation.x = Math.PI * 0.5; rim.position.y = 0.44; vessel.add(rim);
+
+  // Middle weave band
+  const midBand = new THREE.Mesh(new THREE.TorusGeometry(0.66, 0.028, 10, 40), caneDarkMat);
+  midBand.rotation.x = Math.PI * 0.5; midBand.position.y = 0.24; vessel.add(midBand);
+
+  // Radial cane ribs (16 vertical stays around basket)
+  const ribGeo = new THREE.CylinderGeometry(0.014, 0.014, 0.42, 6);
+  for (let i = 0; i < 16; i++) {
+    const a = (i / 16) * Math.PI * 2;
+    const rib = new THREE.Mesh(ribGeo, caneDarkMat);
+    rib.position.set(Math.cos(a) * 0.64, 0.23, Math.sin(a) * 0.64);
+    rib.rotation.z = -Math.cos(a) * 0.26;
+    rib.rotation.x = Math.sin(a) * 0.26;
+    vessel.add(rib);
+  }
+
+  // --- 2. Sacred Silk Bedding (Crimson & Saffron Pleats) ---
+  const silkRedMat = new THREE.MeshStandardMaterial({ color: 0x8a151b, roughness: 0.68 });
+  const silkGoldMat = new THREE.MeshStandardMaterial({ color: 0xe5a32b, roughness: 0.6, metalness: 0.1 });
+  const bedBase = new THREE.Mesh(new THREE.SphereGeometry(0.54, 24, 14), silkRedMat);
+  bedBase.scale.set(1, 0.28, 1); bedBase.position.y = 0.18; vessel.add(bedBase);
+
+  // Gold silk throw folds
+  const bedGold = new THREE.Mesh(new THREE.SphereGeometry(0.46, 20, 12), silkGoldMat);
+  bedGold.scale.set(0.92, 0.22, 0.92); bedGold.position.set(0.04, 0.22, 0.02); vessel.add(bedGold);
+
+  // --- 3. Sculpted Infant Sri Krishna (Bala Mukunda) ---
+  const krishna = new THREE.Group(); krishna.position.set(0, 0.24, 0.04); vessel.add(krishna);
+  const skinMat = new THREE.MeshStandardMaterial({ color: 0x4874a0, roughness: 0.45, metalness: 0.08 }); // Megha-shyamala divine lotus blue
+  const pitambaraMat = new THREE.MeshStandardMaterial({ color: 0xf3ba38, roughness: 0.52, metalness: 0.15 }); // Sacred golden silk
+  const hairMat = new THREE.MeshStandardMaterial({ color: 0x090b14, roughness: 0.9 });
+  const goldJewelMat = new THREE.MeshStandardMaterial({ color: 0xffd24d, roughness: 0.35, metalness: 0.75 });
+
+  // Swaddled body
+  const swaddle = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.14, 0.52, 18), pitambaraMat);
+  swaddle.rotation.z = Math.PI * 0.5; swaddle.rotation.y = 0.15; swaddle.position.set(0, 0.08, 0);
+  krishna.add(swaddle);
+
+  // Little lotus feet peeking from golden wrap
+  const footL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 10, 8), skinMat);
+  footL.scale.set(1.4, 0.7, 0.9); footL.position.set(-0.27, 0.06, 0.08); krishna.add(footL);
+  const footR = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 8), skinMat);
+  footR.scale.set(1.4, 0.7, 0.9); footR.position.set(-0.25, 0.11, -0.04); krishna.add(footR);
+
+  // Infant chest (animated breathing)
+  const krishnaChest = new THREE.Mesh(new THREE.SphereGeometry(0.14, 16, 12), pitambaraMat);
+  krishnaChest.position.set(0.04, 0.16, 0.01); krishna.add(krishnaChest);
+
+  // Infant arms folded tenderly
+  const armL = new THREE.Mesh(new THREE.TorusGeometry(0.09, 0.032, 8, 16, Math.PI), skinMat);
+  armL.rotation.x = Math.PI * 0.5; armL.position.set(0.06, 0.15, 0.08); krishna.add(armL);
+
+  // Infant Head resting gently on silk pillow
+  const head = new THREE.Group(); head.position.set(0.24, 0.18, 0); krishna.add(head);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.13, 20, 16), skinMat); head.add(face);
+
+  // Dark baby curls
+  const hair = new THREE.Mesh(new THREE.SphereGeometry(0.136, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.65), hairMat);
+  hair.rotation.x = -0.3; hair.position.set(-0.01, 0.02, 0); head.add(hair);
+
+  // Golden head circlet / coronet
+  const coronet = new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.014, 8, 24), goldJewelMat);
+  coronet.rotation.x = Math.PI * 0.45; coronet.position.set(0.01, 0.03, 0); head.add(coronet);
+
+  // Authentic Peacock Feather (Mayur Pankh)
+  const feather = new THREE.Group(); feather.position.set(0.06, 0.12, 0.04); feather.rotation.z = -0.35; feather.rotation.y = 0.25; head.add(feather);
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.005, 0.008, 0.22, 6), goldJewelMat);
+  stem.position.y = 0.1; feather.add(stem);
+  // Outer emerald-green flare
+  const eyeOuter = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 10), new THREE.MeshStandardMaterial({ color: 0x1f7a4d, roughness: 0.5 }));
+  eyeOuter.scale.set(1, 1.4, 0.25); eyeOuter.position.y = 0.18; feather.add(eyeOuter);
+  // Turquoise & royal azure blue center
+  const eyeInner = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.2, 1.8, 2.2) }));
+  eyeInner.scale.set(1, 1.3, 0.3); eyeInner.position.set(0, 0.18, 0.015); feather.add(eyeInner);
+  // Deep jewel pupil
+  const eyePupil = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), new THREE.MeshBasicMaterial({ color: new THREE.Color(0.1, 0.15, 0.5) }));
+  eyePupil.position.set(0, 0.18, 0.025); feather.add(eyePupil);
+
+  // Divine Tejas Halo Sprite & Soft Radiant Light
+  const glowSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0xffc46a, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.88 }));
+  glowSprite.position.set(0.24, 0.22, 0); glowSprite.scale.set(4.2, 4.2, 1); krishna.add(glowSprite);
+  const blueAura = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, color: 0x4aa5ff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.42 }));
+  blueAura.position.set(0.24, 0.22, 0); blueAura.scale.set(6.0, 6.0, 1); krishna.add(blueAura);
+  const basketLight = new THREE.PointLight(0xffb862, 34, 15, 2); basketLight.position.set(0.15, 0.35, 0); vessel.add(basketLight);
+
+  // --- 4. Adisesha (The 5-Headed King of Serpents Shielding Krishna) ---
   const hoodShape = new THREE.Shape();
-  hoodShape.moveTo(-0.24, 0); hoodShape.bezierCurveTo(-0.9, 0.5, -1.15, 1.2, -0.9, 1.9); hoodShape.bezierCurveTo(-0.6, 2.4, 0.6, 2.4, 0.9, 1.9); hoodShape.bezierCurveTo(1.15, 1.2, 0.9, 0.5, 0.24, 0); hoodShape.closePath();
-  const hoodGeo = new THREE.ExtrudeGeometry(hoodShape, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.04, bevelSize: 0.04, bevelSegments: 2, curveSegments: 18 });
-  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x072b21, roughness: 0.7, metalness: 0.08, emissive: 0x02120c });
-  const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.9, 0.5) });
+  hoodShape.moveTo(-0.24, 0);
+  hoodShape.bezierCurveTo(-0.95, 0.55, -1.2, 1.25, -0.92, 1.95);
+  hoodShape.bezierCurveTo(-0.6, 2.45, 0.6, 2.45, 0.92, 1.95);
+  hoodShape.bezierCurveTo(1.2, 1.25, 0.95, 0.55, 0.24, 0);
+  hoodShape.closePath();
+  const hoodGeo = new THREE.ExtrudeGeometry(hoodShape, { depth: 0.12, bevelEnabled: true, bevelThickness: 0.05, bevelSize: 0.04, bevelSegments: 3, curveSegments: 20 });
+  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x063024, roughness: 0.48, metalness: 0.32, emissive: 0x02160e });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: 0xb8883b, roughness: 0.55, metalness: 0.2 });
+  const eyeMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(2.8, 2.2, 0.6) });
+  const gemMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(3.8, 0.9, 0.4) }); // Radiant Nagaratna red-gold gem
+
   const hoods = new THREE.Group();
-  [-1.35, -0.68, 0, 0.68, 1.35].forEach(a => {
-    const h = new THREE.Group(); const hm = new THREE.Mesh(hoodGeo, hoodMat); h.add(hm);
-    for (const ex of [-0.2, 0.2]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), eyeMat); e.position.set(ex, 1.62, 0.14); h.add(e); }
-    const sc = a === 0 ? 0.95 : (Math.abs(a) < 0.8 ? 0.85 : 0.74);
-    h.scale.set(0.82 * sc, 0.9 * sc, sc); h.rotation.y = a; h.position.set(Math.sin(a) * 0.95, -Math.abs(a) * 0.22, (1 - Math.cos(a)) * 0.55);
+  [-1.38, -0.7, 0, 0.7, 1.38].forEach((a, idx) => {
+    const h = new THREE.Group();
+    const hm = new THREE.Mesh(hoodGeo, hoodMat); h.add(hm);
+
+    // Golden underside belly plate
+    const belly = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.22, 1.4, 8), bellyMat);
+    belly.scale.set(0.9, 1, 0.22); belly.position.set(0, 1.05, 0.05); h.add(belly);
+
+    // Glowing serpent eyes
+    for (const ex of [-0.22, 0.22]) {
+      const e = new THREE.Mesh(new THREE.SphereGeometry(0.042, 10, 8), eyeMat);
+      e.position.set(ex, 1.68, 0.14); h.add(e);
+    }
+
+    // Sacred Nagaratna Jewel on top of each hood
+    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.065, 12, 10), gemMat);
+    gem.position.set(0, 2.38, 0.06); h.add(gem);
+
+    const sc = a === 0 ? 0.98 : (Math.abs(a) < 0.8 ? 0.88 : 0.76);
+    h.scale.set(0.84 * sc, 0.92 * sc, sc);
+    h.rotation.y = a;
+    h.position.set(Math.sin(a) * 0.98, -Math.abs(a) * 0.22, (1 - Math.cos(a)) * 0.58);
     hoods.add(h);
   });
-  hoods.position.set(0, 0.45, -0.72); hoods.rotation.x = 0.22; vessel.add(hoods);
-  const bodyCurve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, 0.6, -0.75), new THREE.Vector3(0.2, 0.0, -1.5), new THREE.Vector3(1.0, -0.9, -2.8), new THREE.Vector3(2.2, -1.6, -4.4)]);
-  const body = new THREE.Mesh(new THREE.TubeGeometry(bodyCurve, 24, 0.17, 10, false), hoodMat); vessel.add(body);
+  // Canopy arching overhead like an umbrella
+  hoods.position.set(0, 0.45, -0.75); hoods.rotation.x = 0.28; vessel.add(hoods);
+
+  // Massive coiled serpent body supporting the basket
+  const bodyCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0, 0.6, -0.78),
+    new THREE.Vector3(0.3, 0.0, -1.5),
+    new THREE.Vector3(1.1, -0.85, -2.8),
+    new THREE.Vector3(2.3, -1.6, -4.5)
+  ]);
+  const body = new THREE.Mesh(new THREE.TubeGeometry(bodyCurve, 28, 0.19, 10, false), hoodMat); vessel.add(body);
+
+  // --- 5. Sacred Yamuna Water Parting & Golden Foam Ripple ---
+  const rippleGeo = new THREE.RingGeometry(0.72, 1.15, 36);
+  const rippleMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.8, 1.3, 0.6), transparent: true, opacity: 0.42, side: THREE.DoubleSide, blending: THREE.AdditiveBlending });
+  const ripple = new THREE.Mesh(rippleGeo, rippleMat);
+  ripple.rotation.x = Math.PI * 0.5; ripple.position.y = 0.02; vessel.add(ripple);
 
   const bankMat = new THREE.MeshBasicMaterial({ color: 0x030705 });
   const nearBank = new THREE.Mesh(new THREE.BoxGeometry(800, 12, 90), bankMat); nearBank.position.set(0, -2, 125); scene.add(nearBank);
@@ -249,14 +385,18 @@ function buildRiver() {
     w.uFog.value.copy(cf); w.uFogDen.value = S.fogDen; w.uMoonDir.value.copy(moonDir).lerp(S.sunDir, smooth((dawn - 0.4) / 0.4)).normalize(); w.uMoonColor.value.setRGB(0.75, 0.82, 1.0).lerp(tmpC.setRGB(1.0, 0.72, 0.42), smooth((dawn - 0.4) / 0.4));
     camera.getWorldDirection(fwd);
     const r = rainMat.uniforms; r.uTime.value = t; r.uCenter.value.copy(camera.position).addScaledVector(fwd, 10); r.uWind.value.copy(S.wind); r.uBasket.value.copy(basketPos); r.uOpacity.value = 0.55 * S.storm + 0.02; r.uSpeed.value = 18 + 8 * S.storm;
-    vessel.rotation.z = Math.sin(t * 1.1) * 0.05; vessel.rotation.x = Math.sin(t * 0.8 + 1) * 0.04;
-    hoods.rotation.z = Math.sin(t * 0.7) * 0.03; hoods.scale.y = 1 + 0.012 * Math.sin(t * 1.4);
-    basketLight.intensity = 30 * (1 + 0.18 * Math.sin(t * 2.3) + S.glowBoost) * S.basketK; glowSprite.material.opacity = (0.75 + 0.15 * Math.sin(t * 2.3) + S.glowBoost * 0.3) * S.basketK;
+    vessel.rotation.z = Math.sin(t * 1.1) * 0.04; vessel.rotation.x = Math.sin(t * 0.8 + 1) * 0.035;
+    hoods.rotation.z = Math.sin(t * 0.7) * 0.03; hoods.scale.y = 1 + 0.015 * Math.sin(t * 1.4);
+    krishnaChest.scale.y = 1 + 0.05 * Math.sin(t * 2.2);
+    ripple.scale.setScalar(1 + 0.08 * Math.sin(t * 3.0));
+    rippleMat.opacity = (0.35 + 0.15 * Math.sin(t * 3.0)) * S.basketK;
+    basketLight.intensity = 34 * (1 + 0.18 * Math.sin(t * 2.3) + S.glowBoost) * S.basketK;
+    glowSprite.material.opacity = (0.8 + 0.15 * Math.sin(t * 2.3) + S.glowBoost * 0.3) * S.basketK;
     vessel.visible = S.basketK > 0.01; vessel.scale.setScalar(Math.max(0.001, S.basketK));
     flashLight.intensity = S.flash * 2.2;
     const vis = smooth((-camera.position.z - 20) / 45) * (1 - smooth((dawn - 0.45) / 0.35));
     villageMat.uniforms.uTime.value = t; villageMat.uniforms.uOpacity.value = vis; villageGlow.material.opacity = 0.2 * vis;
     gk.update(dt, S, camera);
   }
-  return { scene, update, setBasket, moonWorld, rail, waterMat, rainMat, skyMat, halo, hoods, hoodMat, gk, moon, rohini, skyGroup };
+  return { scene, update, setBasket, moonWorld, rail, waterMat, rainMat, skyMat, halo, hoods, hoodMat, gk, moon, rohini, skyGroup, krishna, basket };
 }

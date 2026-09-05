@@ -13,7 +13,7 @@ const cell = buildCell();
 const river = buildRiver();
 const gk = river.gk;
 
-const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret');
+const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret'), autoBtn = $('#autoCruise');
 for (let i = 0; i < 7; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
 const dotEls = dotsEl.querySelectorAll('i');
 function dots(i) { dotEls.forEach((d, k) => d.classList.toggle('on', k === i)); }
@@ -27,6 +27,7 @@ if (!navigator.share) shareBtn.style.display = 'none';
 const S = {
   mode: 'gate', time: 0, modeT: 0, t: 0, vel: 0, goal: null, push: 0,
   lat: 0, latVel: 0, bank: 0,
+  auto: false, autoPauseT: 0,
   yaw: 0, pitch: 0, yawT: 0, pitchT: 0, locked: false,
   gyroYaw: 0, gyroPitch: 0, gyroRoll: 0, gyroActive: false,
   wind: new THREE.Vector2(0.25, 0), windT: new THREE.Vector2(0.25, 0),
@@ -209,6 +210,39 @@ function updateWalk(dt) {
     const desired = dir * Math.min(WALK() * 2.5, Math.max(M(1.4), Math.sqrt(2 * M(3.5) * Math.abs(dist))));
     S.vel += (desired - S.vel) * Math.min(1, dt * 4.5);
     if (Math.abs(dist) < M(0.12)) { S.t = S.goal; S.vel = 0; S.goal = null; }
+  } else if (S.auto && S.mode === 'river') {
+    // --- Automated Pilgrimage Cruise ---
+    lookForward = true;
+    let targetSpeed = WALK() * 1.15; // ~3.5 m/s serene pilgrimage speed
+
+    if (S.autoPauseT > 0) {
+      S.autoPauseT -= dt;
+      targetSpeed = 0;
+    } else {
+      // 1. Near flute (Chapter 4)
+      const fluteDist = Math.abs(S.t - tAtZ(gk.FLUTE_Z));
+      if (fluteDist < M(6.5) && S.chapter === 'flute') {
+        if (S.notes === 0 && S.idle > -2) targetSpeed = WALK() * 0.35;
+      }
+      // 2. Near Utlotsavam (Chapter 5)
+      const laneDist = Math.abs(S.t - tAtZ(gk.LANE_Z));
+      if (laneDist < M(6.0) && S.chapter === 'lane') {
+        targetSpeed = WALK() * 0.72;
+      }
+      // 3. Arriving at Vrindavan / Nanda Bhavan (Chapter 7)
+      if (S.t > 0.985) {
+        targetSpeed = 0;
+        if (Math.abs(S.vel) < M(0.2)) {
+          S.auto = false;
+          updateAutoBtn();
+        }
+      }
+    }
+
+    S.vel += (targetSpeed - S.vel) * Math.min(1, dt * 2.8);
+
+    // Gently keep centered on path during auto-cruise
+    S.latVel += (-S.lat * 1.1 - S.latVel) * Math.min(1, dt * 2.5);
   } else {
     // Pure natural inertia
     S.vel *= Math.exp(-dt * 3.2);
@@ -221,12 +255,40 @@ function updateWalk(dt) {
   const targetBank = -clamp(S.latVel * 0.012, -0.06, 0.06);
   S.bank += (targetBank - S.bank) * Math.min(1, dt * 6.0);
 }
+
+function toggleAutoJourney() {
+  if (S.mode === 'gate') { enterBtn.click(); return; }
+  if (S.mode === 'cell') { startBirth(); return; }
+  if (S.mode !== 'river') return;
+  S.auto = !S.auto;
+  updateAutoBtn();
+  if (S.auto) {
+    lookForward = true;
+    setHint('Auto-Pilot ON · Sit back & look around freely in 360°');
+    setTimeout(() => { if (S.auto && hintEl.textContent.includes('Auto-Pilot')) setHint(''); }, 3500);
+  } else {
+    setHint('Auto-Pilot Paused');
+    setTimeout(() => { if (!S.auto && hintEl.textContent.includes('Paused')) setHint(''); }, 2000);
+  }
+}
+function updateAutoBtn() {
+  if (!autoBtn) return;
+  autoBtn.classList.toggle('active', S.auto);
+  const txt = autoBtn.querySelector('.txt'), ico = autoBtn.querySelector('.ico');
+  if (txt) txt.textContent = S.auto ? 'Cruise' : 'Auto';
+  if (ico) ico.textContent = S.auto ? '⏸' : '▶';
+}
+if (autoBtn) {
+  autoBtn.addEventListener('click', e => { e.stopPropagation(); toggleAutoJourney(); });
+}
+
 function startRiver() {
   S.mode = 'river'; S.chapter = 'river'; S.chapterT = 0; S.modeT = 0; S.t = 0; S.vel = 0; S.goal = null; S.white = 1; S.exposure = 1; post.rayStrength = 0; S.yawT = 0; S.pitchT = 0; S.nextFlash = S.time + 2.5; cam.tween = null;
   lookForward = true;
   if (sound.on) { sound.setSmooth('rain', 0.3); sound.setSmooth('wind', 0.12); sound.setSmooth('water', 0.22); sound.setSmooth('crickets', 0); sound.setSmooth('tanpura', 0.1); }
   setTimeout(() => card('Chapter two', 'Yamuna', 'The storm bows. The river rises to touch His feet.', 6500), 2800);
   dots(1);
+  setTimeout(() => { if (autoBtn) autoBtn.classList.add('show'); }, 3000);
 }
 const CHAPTER = {
   river: () => { dots(1); if (sound.on) { sound.dholOn = false; sound.setSmooth('rain', 0.28); sound.setSmooth('water', 0.22); } },
@@ -525,6 +587,9 @@ addEventListener('keydown', e => {
   } else if (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') {
     steer(3.8);
     e.preventDefault();
+  } else if (e.key === 'c' || e.key === 'C') {
+    toggleAutoJourney();
+    e.preventDefault();
   } else if (e.key === ' ' || e.key === 'PageDown') {
     if (S.mode === 'gate') enterBtn.click();
     else advance(4.5);
@@ -594,6 +659,6 @@ function frame(now) {
   post.render((S.mode === 'gate' || S.mode === 'cell' || S.mode === 'birth') ? cell.scene : river.scene, camera, S.time);
   drawTrail(dt);
 }
-window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, travelToStation, lookForward: () => lookForward, turnAround: () => { lookForward = !lookForward; }, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, gyro: () => S.gyroActive, recenter: () => { targetGyroYaw = 0; S.gyroYaw = 0; S.yaw = 0; S.yawT = 0; S.pitch = 0; S.pitchT = 0; }, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
+window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, travelToStation, lookForward: () => lookForward, turnAround: () => { lookForward = !lookForward; }, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, gyro: () => S.gyroActive, toggleAuto: toggleAutoJourney, isAuto: () => S.auto, recenter: () => { targetGyroYaw = 0; S.gyroYaw = 0; S.yaw = 0; S.yawT = 0; S.pitch = 0; S.pitchT = 0; }, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
 window.__gokulamReady = true;
 requestAnimationFrame(frame);

@@ -13,7 +13,7 @@ const cell = buildCell();
 const river = buildRiver();
 const gk = river.gk;
 
-const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret'), autoBtn = $('#autoCruise');
+const gate = $('#gate'), enterBtn = $('#enter'), cardEl = $('#card'), cdEl = $('#cd'), cdT = $('#cd .t'), cdN = $('#cd .n'), witnessBtn = $('#witness'), nextBtn = $('#next'), hintEl = $('#hint'), markEl = $('#mark'), dotsEl = $('#dots'), soundBtn = $('#sound'), inviteEl = $('#invite'), nameInput = $('#forname'), copyBtn = $('#copylink'), shareBtn = $('#sharebtn'), secretEl = $('#secret'), autoBtn = $('#autoCruise'), vCluster = $('#vehicleCluster'), vFwd = $('#vFwd'), vRev = $('#vRev'), vLeft = $('#vLeft'), vRight = $('#vRight'), vCenter = $('#vCenter');
 for (let i = 0; i < 7; i++) { const d = document.createElement('i'); dotsEl.appendChild(d); }
 const dotEls = dotsEl.querySelectorAll('i');
 function dots(i) { dotEls.forEach((d, k) => d.classList.toggle('on', k === i)); }
@@ -27,7 +27,7 @@ if (!navigator.share) shareBtn.style.display = 'none';
 const S = {
   mode: 'gate', time: 0, modeT: 0, t: 0, vel: 0, goal: null, push: 0,
   lat: 0, latVel: 0, bank: 0,
-  auto: false, autoPauseT: 0,
+  auto: false, autoPauseT: 0, cruiseDir: 1,
   yaw: 0, pitch: 0, yawT: 0, pitchT: 0, locked: false,
   gyroYaw: 0, gyroPitch: 0, gyroRoll: 0, gyroActive: false,
   wind: new THREE.Vector2(0.25, 0), windT: new THREE.Vector2(0.25, 0),
@@ -143,8 +143,7 @@ const RAIL_LEN = river.rail.getLength();
 const M = m => m / RAIL_LEN;                      // metres → rail units
 function tAtZ(z) { for (let i = 0; i <= 3000; i++) { const u = i / 3000; if (river.rail.getPointAt(u).z <= z) return u; } return 1; }
 const STATIONS = [
-  { name: 'cell', t: 0.0, z: 78, label: '1. Nishita' },
-  { name: 'river', t: tAtZ(15), z: 15, label: '2. Yamuna' },
+  { name: 'river', t: tAtZ(78), z: 78, label: '2. Yamuna' },
   { name: 'shore', t: tAtZ(-104), z: -104, label: '3. Kadamba' },
   { name: 'flute', t: tAtZ(-166.5), z: -166.5, label: '4. Venu Gaanam' },
   { name: 'lane', t: tAtZ(-193), z: -193, label: '5. Utlotsavam' },
@@ -173,7 +172,9 @@ function stationHere() {
 }
 function walkTo(targetT) {
   lookForward = (targetT >= S.t);
+  S.cruiseDir = lookForward ? 1 : -1;
   S.goal = clamp(targetT, 0, 1);
+  updateVehicleUI();
 }
 function travelToStation(targetT) {
   if (S.mode === 'cell' || S.mode === 'gate') {
@@ -185,6 +186,7 @@ function travelToStation(targetT) {
   walkTo(targetT);
 }
 function nextMilestone() {
+  if (S.chapter === 'vrindavan') return tAtZ(78);
   for (const m of MILESTONES) if (m > S.t + M(3)) return m;
   return 1;
 }
@@ -195,9 +197,15 @@ function prevMilestone() {
 function advance(mps) {
   if (S.mode !== 'river') return;
   S.goal = null;
-  if (mps > 0.1) lookForward = true;
-  else if (mps < -0.1 && !S.gyroActive) lookForward = false;
+  if (mps > 0.1) {
+    lookForward = true;
+    S.cruiseDir = 1;
+  } else if (mps < -0.1 && !S.gyroActive) {
+    lookForward = false;
+    S.cruiseDir = -1;
+  }
   S.vel = clamp(S.vel + M(mps), -MAXV, MAXV);
+  updateVehicleUI();
 }
 function steer(dLat) {
   if (S.mode !== 'river') return;
@@ -206,41 +214,59 @@ function steer(dLat) {
 function updateWalk(dt) {
   if (S.goal !== null) {
     const dist = S.goal - S.t, dir = Math.sign(dist);
-    if (Math.abs(dist) > M(0.5)) lookForward = (dir >= 0);
+    if (Math.abs(dist) > M(0.5)) {
+      lookForward = (dir >= 0);
+      S.cruiseDir = lookForward ? 1 : -1;
+    }
     const desired = dir * Math.min(WALK() * 2.5, Math.max(M(1.4), Math.sqrt(2 * M(3.5) * Math.abs(dist))));
     S.vel += (desired - S.vel) * Math.min(1, dt * 4.5);
     if (Math.abs(dist) < M(0.12)) { S.t = S.goal; S.vel = 0; S.goal = null; }
   } else if (S.auto && S.mode === 'river') {
-    // --- Automated Pilgrimage Cruise ---
-    lookForward = true;
-    let targetSpeed = WALK() * 1.15; // ~3.5 m/s serene pilgrimage speed
+    // --- Bi-Directional Automated Pilgrimage Cruise ---
+    const dir = (S.cruiseDir === -1 ? -1 : 1);
+    lookForward = (dir >= 0);
+    let targetSpeed = dir * WALK() * 1.15; // ~3.5 m/s serene pilgrimage speed
 
     if (S.autoPauseT > 0) {
       S.autoPauseT -= dt;
       targetSpeed = 0;
     } else {
-      // 1. Near flute (Chapter 4)
-      const fluteDist = Math.abs(S.t - tAtZ(gk.FLUTE_Z));
-      if (fluteDist < M(6.5) && S.chapter === 'flute') {
-        if (S.notes === 0 && S.idle > -2) targetSpeed = WALK() * 0.35;
-      }
-      // 2. Near Utlotsavam (Chapter 5)
-      const laneDist = Math.abs(S.t - tAtZ(gk.LANE_Z));
-      if (laneDist < M(6.0) && S.chapter === 'lane') {
-        targetSpeed = WALK() * 0.72;
-      }
-      // 3. Arriving at Vrindavan / Nanda Bhavan (Chapter 7)
-      if (S.t > 0.985) {
-        targetSpeed = 0;
-        if (Math.abs(S.vel) < M(0.2)) {
-          S.auto = false;
-          updateAutoBtn();
+      if (dir > 0) {
+        // Forward pilgrimage cruise towards Vrindavan
+        const fluteDist = Math.abs(S.t - tAtZ(gk.FLUTE_Z));
+        if (fluteDist < M(6.5) && S.chapter === 'flute') {
+          if (S.notes === 0 && S.idle > -2) targetSpeed = WALK() * 0.35;
+        }
+        const laneDist = Math.abs(S.t - tAtZ(gk.LANE_Z));
+        if (laneDist < M(6.0) && S.chapter === 'lane') {
+          targetSpeed = WALK() * 0.72;
+        }
+        if (S.t > 0.985) {
+          targetSpeed = 0;
+          if (Math.abs(S.vel) < M(0.2)) {
+            S.auto = false;
+            updateAutoBtn();
+            updateVehicleUI();
+            setHint('Vrindavan Sanctuary Reached · Tap ▼ to retrace journey to Yamuna');
+            setTimeout(() => { if (!S.auto && hintEl.textContent.includes('Vrindavan')) setHint(''); }, 4500);
+          }
+        }
+      } else {
+        // Return pilgrimage cruise back towards Yamuna
+        if (S.t <= tAtZ(400)) {
+          targetSpeed = 0;
+          if (Math.abs(S.vel) < M(0.2)) {
+            S.auto = false;
+            updateAutoBtn();
+            updateVehicleUI();
+            setHint('Deep Yamuna Expanse · Tap ▲ to cruise forward to Vrindavan');
+            setTimeout(() => { if (!S.auto && hintEl.textContent.includes('Deep Yamuna')) setHint(''); }, 4500);
+          }
         }
       }
     }
 
     S.vel += (targetSpeed - S.vel) * Math.min(1, dt * 2.8);
-
     // Gently keep centered on path during auto-cruise
     S.latVel += (-S.lat * 1.1 - S.latVel) * Math.min(1, dt * 2.5);
   } else {
@@ -256,16 +282,27 @@ function updateWalk(dt) {
   S.bank += (targetBank - S.bank) * Math.min(1, dt * 6.0);
 }
 
+function updateVehicleUI() {
+  if (!vCluster) return;
+  if (vFwd) vFwd.classList.toggle('active', S.auto && S.cruiseDir === 1);
+  if (vRev) vRev.classList.toggle('active', S.auto && S.cruiseDir === -1);
+  if (vCenter) vCenter.classList.toggle('active', S.auto);
+}
+
 function toggleAutoJourney() {
   if (S.mode === 'gate') { enterBtn.click(); return; }
   if (S.mode === 'cell') { startBirth(); return; }
   if (S.mode !== 'river') return;
   S.auto = !S.auto;
+  if (S.auto && S.t > 0.98) {
+    S.cruiseDir = -1;
+    lookForward = false;
+  }
   updateAutoBtn();
+  updateVehicleUI();
   if (S.auto) {
-    lookForward = true;
-    setHint('Auto-Pilot ON · Sit back & look around freely in 360°');
-    setTimeout(() => { if (S.auto && hintEl.textContent.includes('Auto-Pilot')) setHint(''); }, 3500);
+    setHint(S.cruiseDir === -1 ? 'Return Cruise Active · Retracing to Yamuna' : 'Auto-Pilot ON · Sit back & look around freely in 360°');
+    setTimeout(() => { if (S.auto && hintEl.textContent.includes('Cruise')) setHint(''); }, 3500);
   } else {
     setHint('Auto-Pilot Paused');
     setTimeout(() => { if (!S.auto && hintEl.textContent.includes('Paused')) setHint(''); }, 2000);
@@ -275,20 +312,68 @@ function updateAutoBtn() {
   if (!autoBtn) return;
   autoBtn.classList.toggle('active', S.auto);
   const txt = autoBtn.querySelector('.txt'), ico = autoBtn.querySelector('.ico');
-  if (txt) txt.textContent = S.auto ? 'Cruise' : 'Auto';
+  if (txt) txt.textContent = S.auto ? (S.cruiseDir === -1 ? 'Return' : 'Cruise') : 'Auto';
   if (ico) ico.textContent = S.auto ? '⏸' : '▶';
 }
 if (autoBtn) {
   autoBtn.addEventListener('click', e => { e.stopPropagation(); toggleAutoJourney(); });
 }
+if (vFwd) {
+  vFwd.addEventListener('click', e => {
+    e.stopPropagation();
+    S.cruiseDir = 1;
+    lookForward = true;
+    if (!S.auto) { S.auto = true; updateAutoBtn(); }
+    else { advance(2.2); }
+    updateVehicleUI();
+    setHint('Cruising Forward towards Vrindavan');
+    setTimeout(() => { if (hintEl.textContent.includes('Forward')) setHint(''); }, 2000);
+  });
+}
+if (vRev) {
+  vRev.addEventListener('click', e => {
+    e.stopPropagation();
+    S.cruiseDir = -1;
+    lookForward = false;
+    if (!S.auto) { S.auto = true; updateAutoBtn(); }
+    else { advance(-2.2); }
+    updateVehicleUI();
+    setHint('Cruising Return towards Yamuna');
+    setTimeout(() => { if (hintEl.textContent.includes('Return')) setHint(''); }, 2000);
+  });
+}
+if (vLeft) {
+  vLeft.addEventListener('click', e => {
+    e.stopPropagation();
+    steer(-3.5);
+  });
+}
+if (vRight) {
+  vRight.addEventListener('click', e => {
+    e.stopPropagation();
+    steer(3.5);
+  });
+}
+if (vCenter) {
+  vCenter.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleAutoJourney();
+  });
+}
 
 function startRiver() {
-  S.mode = 'river'; S.chapter = 'river'; S.chapterT = 0; S.modeT = 0; S.t = 0; S.vel = 0; S.goal = null; S.white = 1; S.exposure = 1; post.rayStrength = 0; S.yawT = 0; S.pitchT = 0; S.nextFlash = S.time + 2.5; cam.tween = null;
+  S.mode = 'river'; S.chapter = 'river'; S.chapterT = 0; S.modeT = 0;
+  S.t = tAtZ(78); // Start at Yamuna entrance point, with infinite stormy river behind!
+  S.vel = 0; S.goal = null; S.white = 1; S.exposure = 1; post.rayStrength = 0; S.yawT = 0; S.pitchT = 0; S.nextFlash = S.time + 2.5; cam.tween = null;
   lookForward = true;
+  S.cruiseDir = 1;
   if (sound.on) { sound.setSmooth('rain', 0.3); sound.setSmooth('wind', 0.12); sound.setSmooth('water', 0.22); sound.setSmooth('crickets', 0); sound.setSmooth('tanpura', 0.1); }
   setTimeout(() => card('Chapter two', 'Yamuna', 'The storm bows. The river rises to touch His feet.', 6500), 2800);
   dots(1);
-  setTimeout(() => { if (autoBtn) autoBtn.classList.add('show'); }, 3000);
+  setTimeout(() => {
+    if (autoBtn) autoBtn.classList.add('show');
+    if (vCluster) vCluster.classList.add('show');
+  }, 3000);
 }
 const CHAPTER = {
   river: () => { dots(1); if (sound.on) { sound.dholOn = false; sound.setSmooth('rain', 0.28); sound.setSmooth('water', 0.22); } },
@@ -318,7 +403,11 @@ function updateRiver(dt) {
   // Tangent & perpendicular normal for 3D lateral steering
   const tan = river.rail.getTangentAt(u).normalize();
   const norm = new THREE.Vector3(-tan.z, 0, tan.x).normalize();
+  
+  // Natural human-eye height + subtle walking bob
+  const walkBob = Math.sin(S.time * 6.5) * Math.min(0.04, Math.abs(S.vel) * 0.4);
   const camPos = railP.clone().addScaledVector(norm, S.lat);
+  camPos.y += walkBob;
   cam.pos.copy(camPos);
 
   const lookAheadT = clamp(S.t + (lookForward ? M(7.5) : -M(7.5)), 0, 1);
@@ -332,26 +421,37 @@ function updateRiver(dt) {
   S.dawn = 0.42 * smooth((S.dawnK - 0.05) / 0.4) * (1 - 0.6 * smooth((S.dawnK - 0.7) / 0.3));
   S.basketK = 1 - smooth((-camZ - 86) / 10);
   S.glowBoost = 0;
-  const bP = river.rail.getPointAt(clamp(S.t + M(6), 0, 1)); bP.y = 0.62 + Math.sin(S.time * 1.6) * 0.1;
-  river.setBasket(bP);
 
-  // Dynamic 3D Camera LookAt Kinematics
-  if (S.chapter === 'flute' && lookForward && Math.abs(camZ - gk.FLUTE_Z) < 8) {
-    targetLook.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
-  } else if (S.chapter === 'lane' && lookForward && Math.abs(camZ - gk.LANE_Z) < 9) {
-    targetLook.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
-  } else if (S.chapter === 'card' && lookForward && Math.abs(camZ - gk.CARD_Z) < 10) {
-    targetLook.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
-  } else if (S.chapter === 'vrindavan' && lookForward && Math.abs(camZ - gk.VRINDAVAN_Z) < 14) {
-    targetLook.set(0, gk.groundY(gk.VRINDAVAN_Z) + 2.1, gk.VRINDAVAN_Z);
-  } else if (S.basketK > 0.5 && lookForward) {
-    targetLook.set(bP.x, bP.y + 0.9, bP.z - 9);
-  } else if (!lookForward) {
-    targetLook.set(ahead.x, ahead.y + 0.15, ahead.z + 6);
+  // Basket is carried in front along the direction of travel!
+  const bT = clamp(S.t + (lookForward ? M(6.0) : -M(6.0)), 0, 1);
+  const bP = river.rail.getPointAt(bT);
+  bP.y = 0.62 + Math.sin(S.time * 1.6) * 0.1;
+  river.setBasket(bP, lookForward ? 0 : Math.PI);
+
+  // Dynamic 3D Camera LookAt Kinematics (Natural Human-Eye Point of View)
+  if (lookForward) {
+    if (S.chapter === 'flute' && Math.abs(camZ - gk.FLUTE_Z) < 8) {
+      targetLook.set(0, gk.groundY(gk.FLUTE_Z) + 1.3, gk.FLUTE_Z);
+    } else if (S.chapter === 'lane' && Math.abs(camZ - gk.LANE_Z) < 9) {
+      targetLook.set(0, gk.groundY(gk.LANE_Z) + 2.4, gk.LANE_Z);
+    } else if (S.chapter === 'card' && Math.abs(camZ - gk.CARD_Z) < 10) {
+      targetLook.set(0, gk.groundY(gk.CARD_Z) + 1.95 - (innerWidth > innerHeight ? 0.55 : 0.35), gk.CARD_Z);
+    } else if (S.chapter === 'vrindavan' && Math.abs(camZ - gk.VRINDAVAN_Z) < 14) {
+      targetLook.set(0, gk.groundY(gk.VRINDAVAN_Z) + 2.1, gk.VRINDAVAN_Z);
+    } else if (S.basketK > 0.5) {
+      targetLook.set(bP.x, bP.y + 0.9, bP.z - 9);
+    } else {
+      targetLook.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
+    }
   } else {
-    targetLook.set(ahead.x, ahead.y - 0.35, ahead.z - 6);
+    // Retrace / Backward Walk: Camera turns around naturally 180° facing walking direction (+Z)
+    if (S.basketK > 0.5) {
+      targetLook.set(bP.x, bP.y + 0.9, bP.z + 9);
+    } else {
+      targetLook.set(ahead.x, ahead.y + 0.1, ahead.z + 8);
+    }
   }
-  cam.tgt.lerp(targetLook, Math.min(1, dt * 5.0));
+  cam.tgt.lerp(targetLook, Math.min(1, dt * 4.8));
 
   // Determine chapter based on Z
   if (camZ > -88) setChapter('river');

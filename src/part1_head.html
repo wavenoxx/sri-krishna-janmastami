@@ -21,7 +21,7 @@ canvas#gl{position:fixed;inset:0;width:100%;height:100%;display:block}
 canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:5}
 #ui{position:fixed;inset:0;z-index:10;pointer-events:none}
 #ui > *{pointer-events:none}
-#ui .btn,#ui #sound,#ui #autoCruise,#ui #err,#ui #invite input{pointer-events:auto}
+#ui .btn,#ui #sound,#ui #autoCruise,#ui .v-btn,#ui #err,#ui #invite input{pointer-events:auto}
 
 .btn{cursor:pointer;font-family:var(--serif);font-size:19px;letter-spacing:.06em;color:var(--gold-soft);background:rgba(7,10,28,.28);border:1px solid rgba(229,181,103,.5);padding:15px 38px;border-radius:999px;transition:border-color .4s,box-shadow .4s,background .4s,transform .4s;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .btn:hover,.btn:focus-visible{border-color:var(--gold-soft);box-shadow:0 0 36px rgba(229,181,103,.28);outline:none;transform:translateY(-1px)}
@@ -89,7 +89,17 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
 @keyframes cruisePulse{0%,100%{transform:scale(1);opacity:.9}50%{transform:scale(1.35);opacity:1}}
 #autoCruise .ico{font-size:10px;line-height:1;margin-left:2px}
 #autoCruise:focus-visible{outline:1px solid var(--gold-soft);outline-offset:3px}
-#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound,#autoCruise{will-change:opacity}
+
+#vehicleCluster{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 12px;border-radius:24px;background:linear-gradient(135deg,rgba(255,255,255,.12) 0%,rgba(255,255,255,.02) 100%);border:1px solid rgba(255,255,255,.22);box-shadow:inset 0 1px 1px 0 rgba(255,255,255,.35),0 12px 32px -4px rgba(0,0,0,.55);backdrop-filter:blur(24px) saturate(190%);-webkit-backdrop-filter:blur(24px) saturate(190%);opacity:0;visibility:hidden;transition:opacity 1.2s ease,visibility 1.2s,transform .4s;pointer-events:none;z-index:15}
+#vehicleCluster.show{opacity:.95;visibility:visible;pointer-events:auto}
+#vehicleCluster .v-row{display:flex;align-items:center;gap:6px}
+.v-btn{cursor:pointer;width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:system-ui,-apple-system,sans-serif;font-size:13px;color:var(--cream);background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);box-shadow:inset 0 1px 1px rgba(255,255,255,.3);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);transition:background .25s,border-color .25s,transform .2s,color .25s,box-shadow .25s;user-select:none;-webkit-user-select:none}
+.v-btn:hover,.v-btn:focus-visible{background:rgba(229,181,103,.25);border-color:var(--gold-soft);color:var(--gold-soft);box-shadow:0 0 14px rgba(229,181,103,.35);outline:none;transform:scale(1.08)}
+.v-btn:active{transform:scale(0.92)}
+.v-btn.active{background:rgba(229,181,103,.38);border-color:var(--gold-soft);color:var(--gold-soft);box-shadow:0 0 16px rgba(229,181,103,.5)}
+.v-btn.v-main{width:42px;height:42px;font-size:16px;color:var(--gold-soft);border-color:rgba(229,181,103,.45)}
+
+#gate,#hint,#card,#cd,#witness,#mark,#dots,#sound,#autoCruise,#vehicleCluster{will-change:opacity}
 
 @media (max-width:760px){
   #mark{left:16px;top:18px;font-size:13px}
@@ -102,6 +112,9 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   #invite{bottom:156px}
   #secret{top:58px;right:16px;font-size:13px}
   #autoCruise{top:16px;right:16px;padding:6px 13px;font-size:13px}
+  #vehicleCluster{bottom:76px;padding:6px 10px;border-radius:20px}
+  .v-btn{width:34px;height:34px;font-size:12px}
+  .v-btn.v-main{width:38px;height:38px;font-size:15px}
 }
 @media (prefers-reduced-motion:reduce){#sound .bar{animation:none}}
 </style>
@@ -126,6 +139,15 @@ canvas#fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-in
   <button class="btn" id="witness">Witness the birth now</button>
   <button class="btn" id="next">Continue</button>
   <div id="invite"><input id="forname" maxlength="28" placeholder="Write a name on the card"><div class="row"><button class="btn" id="copylink">Copy the invitation link</button><button class="btn" id="sharebtn">Share</button></div><div class="note">The link opens this journey with their name written in gold.</div></div>
+  <div id="vehicleCluster" aria-label="Vehicle Cruise Controls">
+    <button id="vFwd" class="v-btn" aria-label="Forward Cruise" title="Forward Cruise (W / Up)">▲</button>
+    <div class="v-row">
+      <button id="vLeft" class="v-btn" aria-label="Steer Left" title="Steer Left (A / Left)">◀</button>
+      <button id="vCenter" class="v-btn v-main" aria-label="Cruise Toggle" title="Pause / Resume">✦</button>
+      <button id="vRight" class="v-btn" aria-label="Steer Right" title="Steer Right (D / Right)">▶</button>
+    </div>
+    <button id="vRev" class="v-btn" aria-label="Return Cruise" title="Return Cruise (S / Down)">▼</button>
+  </div>
   <div id="secret"></div>
   <div id="hint"></div>
   <div id="dots"></div>

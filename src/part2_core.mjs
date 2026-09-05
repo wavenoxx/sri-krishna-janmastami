@@ -144,12 +144,12 @@ vec3 gerstner(vec2 p, float t){
 }
 float rise(vec2 p, float t){ return uRise * smoothstep(5.5,0.0,distance(p,uBasket.xz)) * (0.8 + 0.2*sin(t*2.1)); }
 void main(){
-  vec2 xz = position.xz; float e = 0.4;
+  vec2 xz = (modelMatrix * vec4(position, 1.0)).xz; float e = 0.4;
   vec3 P  = vec3(xz.x,0.0,xz.y)   + gerstner(xz,uTime)                + vec3(0.0,rise(xz,uTime),0.0);
   vec3 PX = vec3(xz.x+e,0.0,xz.y) + gerstner(xz+vec2(e,0.0),uTime)   + vec3(0.0,rise(xz+vec2(e,0.0),uTime),0.0);
   vec3 PZ = vec3(xz.x,0.0,xz.y+e) + gerstner(xz+vec2(0.0,e),uTime)   + vec3(0.0,rise(xz+vec2(0.0,e),uTime),0.0);
   vec3 n = normalize(cross(PZ-P, PX-P));
-  vec4 wp = modelMatrix*vec4(P,1.0);
+  vec4 wp = vec4(P,1.0);
   vPos = wp.xyz; vNormal = n; vCrest = P.y;
   gl_Position = projectionMatrix*viewMatrix*wp;
 }`;

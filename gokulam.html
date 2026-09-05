@@ -1169,6 +1169,7 @@ const S = {
   mode: 'gate', time: 0, modeT: 0, t: 0, vel: 0, goal: null, push: 0,
   lat: 0, latVel: 0, bank: 0,
   yaw: 0, pitch: 0, yawT: 0, pitchT: 0, locked: false,
+  gyroYaw: 0, gyroPitch: 0, gyroRoll: 0, gyroActive: false,
   wind: new THREE.Vector2(0.25, 0), windT: new THREE.Vector2(0.25, 0),
   flash: 0, flashT: 0, flashOn: false, flashPower: 1, nextFlash: 4,
   storm: 1, dawn: 0, glowBoost: 0,
@@ -1177,6 +1178,9 @@ const S = {
   chapter: 'cell', chapterT: 0, idle: 0, notes: 0, dawnK: 0, sunDir: new THREE.Vector3(0, -1, 0), sunI: 0, ambCol: new THREE.Color(0.11, 0.14, 0.24), fogCol: new THREE.Color(0x0a1029), fogDen: 0.009, basketK: 1,
   secrets: { star: false, moon: false, lamp: false }, lampTaps: 0
 };
+let targetGyroYaw = 0, targetGyroPitch = 0, targetGyroRoll = 0;
+let lastHeading = null;
+let gyroRequested = false;
 const cam = { pos: new THREE.Vector3(), tgt: new THREE.Vector3(), tween: null };
 const GATE_TGT = new THREE.Vector3(1.4, 0.5, 1.5);
 const CELL_POS = new THREE.Vector3(0, 1.7, 3.4), CELL_TGT = new THREE.Vector3(0, 1.9, -6);
@@ -1186,10 +1190,22 @@ function tweenCam(toPos, toTgt, dur) { cam.tween = { fp: cam.pos.clone(), ft: ca
 function updateCam(dt) {
   if (cam.tween) { const w = cam.tween; w.t += dt; const k = easeInOut(w.t / w.dur); cam.pos.lerpVectors(w.fp, w.tp, k); cam.tgt.lerpVectors(w.ft, w.tt, k); if (w.t >= w.dur) cam.tween = null; }
   camera.position.copy(cam.pos); camera.lookAt(cam.tgt);
-  const k = Math.min(1, dt * 3.2);
+
+  if (S.gyroActive) {
+    const kG = Math.min(1, dt * 12.0);
+    S.gyroYaw += (targetGyroYaw - S.gyroYaw) * kG;
+    S.gyroPitch += (targetGyroPitch - S.gyroPitch) * kG;
+    S.gyroRoll += (targetGyroRoll - S.gyroRoll) * kG;
+  } else if (!P.down && (Math.abs(S.yawT) > 0.005 || Math.abs(S.pitchT) > 0.005)) {
+    S.yawT *= Math.exp(-dt * 2.2);
+    S.pitchT *= Math.exp(-dt * 2.2);
+  }
+
+  const k = Math.min(1, dt * 3.5);
   S.yaw += (S.yawT - S.yaw) * k; S.pitch += (S.pitchT - S.pitch) * k;
-  camera.rotateY(S.yaw); camera.rotateX(S.pitch);
-  if (S.bank) camera.rotateZ(S.bank);
+  camera.rotateY(S.yaw + S.gyroYaw); camera.rotateX(S.pitch + S.gyroPitch);
+  const totalRoll = (S.bank || 0) + S.gyroRoll;
+  if (totalRoll) camera.rotateZ(totalRoll);
 }
 
 /* ───────────────────────── lightning ───────────────────────── */
@@ -1224,6 +1240,7 @@ function updateCountdown() {
 /* ───────────────────────── chapter one and the birth ───────────────────────── */
 enterBtn.addEventListener('click', () => {
   if (S.mode !== 'gate') return;
+  initGyro();
   try { sound.init(); } catch (e) { console.warn('audio unavailable', e); }
   if (sound.on) { sound.tanpuraOn = true; sound.set('crickets', 0.05, 4); sound.set('rain', 0.055, 4); sound.set('wind', 0.03, 4); sound.set('tanpura', 0.24, 5); setTimeout(() => { sound.heart = true; }, 3800); }
   if (isMobile && document.documentElement.requestFullscreen) { try { document.documentElement.requestFullscreen().catch(() => {}); } catch (e) {} }
@@ -1232,7 +1249,7 @@ enterBtn.addEventListener('click', () => {
   tweenCam(CELL_POS, CELL_TGT, 5.2);
   setTimeout(() => card('Chapter one', 'Nishita', 'Mathura. A prison cell. The eighth night of the dark fortnight.', 6500), 1800);
   setTimeout(() => { markEl.classList.add('show'); soundBtn.classList.add('show'); dotsEl.classList.add('show'); dots(0); }, 4300);
-  setTimeout(() => { if (S.mode !== 'cell') return; cdEl.classList.add('show'); setHint(isMobile ? 'Drag to look around. Wait for midnight, or witness now.' : 'Move the mouse to look around. Wait for midnight, or witness the birth now.'); }, 9000);
+  setTimeout(() => { if (S.mode !== 'cell') return; cdEl.classList.add('show'); setHint(isMobile ? 'Move your phone or drag to look around. Wait for midnight, or witness now.' : 'Move the mouse to look around. Wait for midnight, or witness the birth now.'); }, 9000);
   setTimeout(() => { if (S.mode === 'cell') witnessBtn.classList.add('show'); }, 10500);
 });
 witnessBtn.addEventListener('click', startBirth);
@@ -1284,9 +1301,9 @@ const NEXT_LABEL = {
   card: 'Enter Vrindavan',
   vrindavan: 'Retrace to Yamuna'
 };
-const MAXV = M(22.0);
-const MAX_LAT = 10.0;
-const WALK = () => M(S.chapter === 'river' ? 3.6 : 3.2);
+const MAXV = M(9.5);
+const MAX_LAT = 9.0;
+const WALK = () => M(S.chapter === 'river' ? 3.4 : 3.0);
 let lookForward = true;
 const targetLook = new THREE.Vector3();
 
@@ -1319,30 +1336,30 @@ function advance(mps) {
   if (S.mode !== 'river') return;
   S.goal = null;
   if (mps > 0.1) lookForward = true;
-  else if (mps < -0.1) lookForward = false;
+  else if (mps < -0.1 && !S.gyroActive) lookForward = false;
   S.vel = clamp(S.vel + M(mps), -MAXV, MAXV);
 }
 function steer(dLat) {
   if (S.mode !== 'river') return;
-  S.latVel = clamp(S.latVel + dLat, -12.0, 12.0);
+  S.latVel = clamp(S.latVel + dLat, -8.0, 8.0);
 }
 function updateWalk(dt) {
   if (S.goal !== null) {
     const dist = S.goal - S.t, dir = Math.sign(dist);
     if (Math.abs(dist) > M(0.5)) lookForward = (dir >= 0);
-    const desired = dir * Math.min(WALK() * 2.8, Math.max(M(1.5), Math.sqrt(2 * M(4.0) * Math.abs(dist))));
+    const desired = dir * Math.min(WALK() * 2.5, Math.max(M(1.4), Math.sqrt(2 * M(3.5) * Math.abs(dist))));
     S.vel += (desired - S.vel) * Math.min(1, dt * 4.5);
     if (Math.abs(dist) < M(0.12)) { S.t = S.goal; S.vel = 0; S.goal = null; }
   } else {
     // Pure natural inertia
-    S.vel *= Math.exp(-dt * 2.8);
+    S.vel *= Math.exp(-dt * 3.2);
   }
   S.t = clamp(S.t + S.vel * dt, 0, 1);
 
   // Lateral steering physics & banking roll (Mini GTA / Open World feeling)
-  S.latVel *= Math.exp(-dt * 3.4);
+  S.latVel *= Math.exp(-dt * 4.0);
   S.lat = clamp(S.lat + S.latVel * dt, -MAX_LAT, MAX_LAT);
-  const targetBank = -clamp(S.latVel * 0.015, -0.07, 0.07);
+  const targetBank = -clamp(S.latVel * 0.012, -0.06, 0.06);
   S.bank += (targetBank - S.bank) * Math.min(1, dt * 6.0);
 }
 function startRiver() {
@@ -1457,13 +1474,64 @@ nameInput.addEventListener('input', () => gk.setCardName(nameInput.value.trim().
 function inviteLink() { const u = new URL(location.href); u.search = ''; const n = nameInput.value.trim(); if (n) u.searchParams.set('for', n); return u.toString(); }
 copyBtn.addEventListener('click', async () => { const link = inviteLink(); try { await navigator.clipboard.writeText(link); copyBtn.textContent = 'Link copied'; } catch (e) { prompt('Copy this link', link); } setTimeout(() => { copyBtn.textContent = 'Copy the invitation link'; }, 2500); });
 shareBtn.addEventListener('click', async () => { try { await navigator.share({ title: 'Gokulam, a midnight journey', text: 'You are invited to the night He was born.', url: inviteLink() }); } catch (e) {} });
-let gyroOn = false;
-function askGyro() {
+function initGyro() {
+  if (gyroRequested && S.gyroActive) return;
+  gyroRequested = true;
   const DOE = window.DeviceOrientationEvent;
   if (!DOE) return;
-  const start = () => { if (gyroOn) return; gyroOn = true; addEventListener('deviceorientation', e => { if (e.gamma == null) return; gk.setTilt(clamp(e.gamma / 30, -1, 1), clamp((e.beta - 45) / 35, -1, 1)); }); };
-  if (typeof DOE.requestPermission === 'function') { const once = () => { DOE.requestPermission().then(r => { if (r === 'granted') start(); }).catch(() => {}); removeEventListener('pointerdown', once); }; addEventListener('pointerdown', once); }
-  else start();
+  const startListening = () => {
+    if (S.gyroActive) return;
+    S.gyroActive = true;
+    window.addEventListener('deviceorientation', onDeviceOrientation, { passive: true });
+  };
+  if (typeof DOE.requestPermission === 'function') {
+    DOE.requestPermission()
+      .then(res => { if (res === 'granted') startListening(); })
+      .catch(() => {});
+  } else {
+    startListening();
+  }
+}
+const askGyro = initGyro;
+
+function onDeviceOrientation(e) {
+  if (e.beta == null || e.gamma == null) return;
+  gk.setTilt(clamp(e.gamma / 30, -1, 1), clamp((e.beta - 45) / 35, -1, 1));
+
+  const orient = (window.orientation || (screen.orientation && screen.orientation.angle) || 0);
+  let pitchDeg, rollDeg;
+  if (orient === 90) {
+    pitchDeg = clamp(e.gamma, -85, 85);
+    rollDeg = clamp(-(e.beta - 55), -45, 45);
+  } else if (orient === -90 || orient === 270) {
+    pitchDeg = clamp(-e.gamma, -85, 85);
+    rollDeg = clamp(e.beta - 55, -45, 45);
+  } else {
+    pitchDeg = clamp(e.beta - 55, -85, 85);
+    rollDeg = clamp(e.gamma, -45, 45);
+  }
+
+  targetGyroPitch = pitchDeg * (Math.PI / 180);
+  targetGyroRoll = rollDeg * (Math.PI / 180) * 0.35;
+
+  let heading = null;
+  if (e.webkitCompassHeading !== undefined && e.webkitCompassHeading !== null) {
+    heading = -e.webkitCompassHeading;
+  } else if (e.alpha !== null && e.alpha !== undefined) {
+    heading = e.alpha;
+  }
+
+  if (heading !== null) {
+    if (lastHeading === null) {
+      lastHeading = heading;
+    } else {
+      let dh = heading - lastHeading;
+      if (dh > 180) dh -= 360;
+      else if (dh < -180) dh += 360;
+      lastHeading = heading;
+      targetGyroYaw += dh * (Math.PI / 180);
+    }
+  }
 }
 
 /* ───────────────────────── secrets ───────────────────────── */
@@ -1487,8 +1555,9 @@ function tapWorld(ndc) {
 }
 
 /* ───────────────────────── input ───────────────────────── */
-const P = { down: false, sx: 0, sy: 0, lx: 0, ly: 0, mode: null };
+const P = { down: false, sx: 0, sy: 0, lx: 0, ly: 0, moved: 0, mode: null };
 let hotHole = -1, lastHole = -1;
+let lastTapTime = 0;
 const ndcV = new THREE.Vector3();
 function fluteAt(nx, ny) {
   let best = -1, bd = 1e9;
@@ -1510,8 +1579,25 @@ function tapAt(cx, cy) {
   if (S.chapter === 'flute' && S.mode === 'river') { const h = fluteAt(ndc.x, ndc.y); if (h >= 0) { gk.playNote(h); S.notes++; S.idle = 0; } return; }
   tapWorld(ndc);
 }
-addEventListener('pointerdown', e => { P.down = true; P.sx = P.lx = e.clientX; P.sy = P.ly = e.clientY; P.mode = null; lastHole = -1; if (e.pointerType !== 'touch' && S.chapter === 'flute') { const nx = (e.clientX / innerWidth) * 2 - 1, ny = 1 - (e.clientY / innerHeight) * 2; flutePointer(nx, ny, true); } });
-addEventListener('pointerup', e => { if (P.down && Math.abs(e.clientX - P.sx) < 10 && Math.abs(e.clientY - P.sy) < 10 && !(e.pointerType !== 'touch' && S.chapter === 'flute')) tapAt(e.clientX, e.clientY); P.down = false; P.mode = null; lastHole = -1; });
+addEventListener('pointerdown', e => {
+  P.down = true; P.sx = P.lx = e.clientX; P.sy = P.ly = e.clientY; P.moved = 0; P.mode = null; lastHole = -1;
+  if (!gyroRequested) initGyro();
+  if (e.pointerType === 'touch') {
+    const now = performance.now();
+    if (now - lastTapTime < 320) {
+      targetGyroYaw = 0; S.gyroYaw = 0; S.yaw = 0; S.yawT = 0; S.pitch = 0; S.pitchT = 0;
+    }
+    lastTapTime = now;
+  }
+  if (e.pointerType !== 'touch' && S.chapter === 'flute') {
+    const nx = (e.clientX / innerWidth) * 2 - 1, ny = 1 - (e.clientY / innerHeight) * 2;
+    flutePointer(nx, ny, true);
+  }
+});
+addEventListener('pointerup', e => {
+  if (P.down && P.moved < 15 && !(e.pointerType !== 'touch' && S.chapter === 'flute')) tapAt(e.clientX, e.clientY);
+  P.down = false; P.mode = null; lastHole = -1;
+});
 addEventListener('pointercancel', () => { P.down = false; P.mode = null; lastHole = -1; });
 addEventListener('pointermove', e => {
   const nx = (e.clientX / innerWidth) * 2 - 1, ny = (e.clientY / innerHeight) * 2 - 1;
@@ -1519,16 +1605,35 @@ addEventListener('pointermove', e => {
   S.windT.set(0.15 + nx * 0.45, ny * 0.15);
   if (S.chapter === 'card' || S.chapter === 'end') gk.setTilt(nx, -ny);
   if (S.chapter === 'lane' && S.mode === 'river') gk.hoverPot(new THREE.Vector2(nx, -ny), camera);
+
   if (e.pointerType === 'touch') {
     if (!P.down) return;
-    const dx = e.clientX - P.lx, dy = e.clientY - P.ly; P.lx = e.clientX; P.ly = e.clientY;
+    const dx = e.clientX - P.lx, dy = e.clientY - P.ly;
+    P.lx = e.clientX; P.ly = e.clientY;
+    P.moved += Math.hypot(dx, dy);
+
     if (S.chapter === 'flute' && S.locked) { flutePointer(nx, -ny, true); return; }
-    // Vertical swipe: swipe up moves forward, swipe down moves backward
-    advance(-dy * 0.08);
+
+    if (S.mode === 'cell' || S.mode === 'gate') {
+      S.yawT = clamp(S.yawT - dx * 0.003, -1.8, 1.8);
+      S.pitchT = clamp(S.pitchT - dy * 0.002, -0.8, 0.8);
+      return;
+    }
+
+    const absX = Math.abs(dx), absY = Math.abs(dy);
+    // Vertical swipe: swipe up moves forward, swipe down steps backward
+    if (absY > absX * 0.6) {
+      advance(-dy * 0.022);
+    }
     // Horizontal swipe: swipe right steers right, swipe left steers left
-    steer(dx * 0.07);
-    S.yawT = clamp(S.yawT + dx * 0.0025, -1.1, 1.1);
-    S.pitchT = clamp(S.pitchT + dy * 0.0018, -0.45, 0.45);
+    if (absX > absY * 0.6) {
+      steer(dx * 0.015);
+    }
+
+    if (!S.gyroActive) {
+      S.yawT = clamp(S.yawT - dx * 0.002, -1.2, 1.2);
+      S.pitchT = clamp(S.pitchT - dy * 0.0015, -0.6, 0.6);
+    }
   } else {
     S.yawT = -nx * 0.42; S.pitchT = -ny * 0.22;
     flutePointer(nx, -ny, true);
@@ -1538,11 +1643,11 @@ addEventListener('wheel', e => {
   e.preventDefault();
   // Scroll down -> forward, Scroll up -> backward
   if (Math.abs(e.deltaY) > 0.5) {
-    advance(clamp(e.deltaY, -140, 140) * 0.045);
+    advance(clamp(e.deltaY, -120, 120) * 0.038);
   }
   // Scroll right -> steer right, Scroll left -> steer left
   if (Math.abs(e.deltaX) > 1.5) {
-    steer(clamp(e.deltaX, -120, 120) * 0.045);
+    steer(clamp(e.deltaX, -100, 100) * 0.038);
   }
 }, { passive: false });
 addEventListener('touchmove', e => e.preventDefault(), { passive: false });
@@ -1630,7 +1735,7 @@ function frame(now) {
   post.render((S.mode === 'gate' || S.mode === 'cell' || S.mode === 'birth') ? cell.scene : river.scene, camera, S.time);
   drawTrail(dt);
 }
-window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, travelToStation, lookForward: () => lookForward, turnAround: () => { lookForward = !lookForward; }, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
+window.gokulam = { S, startBirth, startRiver, river, gk, cell, camera, advance, walkTo, travelToStation, lookForward: () => lookForward, turnAround: () => { lookForward = !lookForward; }, sound, post, STATIONS, MILESTONES, setChapter, tAtZ, lightLamps, hdr: post.hdr, mobile: isMobile, gyro: () => S.gyroActive, recenter: () => { targetGyroYaw = 0; S.gyroYaw = 0; S.yaw = 0; S.yawT = 0; S.pitch = 0; S.pitchT = 0; }, ff: sec => { for (let i = 0; i < sec / 0.05; i++) update(0.05); } };
 window.__gokulamReady = true;
 requestAnimationFrame(frame);
 </script>
